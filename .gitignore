@@ -1,0 +1,30 @@
+# Maven build output
+target/
+*.jar
+*.war
+*.ear
+
+# Sensitive config — contains DB credentials, never push
+src/main/resources/application.properties
+
+
+# IDE files
+.idea/
+*.iml
+*.iws
+.vscode/
+*.classpath
+*.project
+.settings/
+
+# Spring Boot
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment / Secrets - DO NOT PUSH
+# application.properties contains DB credentials
+# If pushing to public repo, move DB credentials to environment variables
