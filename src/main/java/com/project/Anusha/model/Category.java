@@ -1,52 +1,35 @@
 package com.project.Anusha.model;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-import java.time.LocalDateTime;
-import java.util.List;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.time.LocalDateTime;
 
 @Entity
+@Table(name = "categories")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "categories")
+@Builder
 public class Category {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private String name;
+
     private String description;
 
+    @Builder.Default
     private Boolean isActive = true;
-    private Integer displayOrder;
-    private Double discount;
 
     private String imageUrl;
-    private String videoUrl;
 
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-
-    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL)
-    @JsonIgnore 
-    private List<SubCategory> subCategories;
-
-    @PrePersist
-    public void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-    }
-
-    @PreUpdate
-    public void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
 }

@@ -1,17 +1,17 @@
 package com.project.Anusha.repository;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import com.project.Anusha.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface UserRepository extends JpaRepository<User, Long> {
+
     Optional<User> findByEmail(String email);
-    Optional<User> findByResetToken(String resetToken);
-    Optional<User> findByAdminAccessChallengeToken(String adminAccessChallengeToken);
-    boolean existsByRole(String role);
-    List<User> findByRoleIn(List<String> roles);
-    long countByRole(String role);
+
+    Optional<User> findByPhoneNumber(String phoneNumber);
+
+    boolean existsByEmail(String email);
 }
