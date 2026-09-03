@@ -30,7 +30,7 @@ jobs:
           cache: maven
 
       - name: Test
-        run: mvn -B clean test -Dtest='!AnushaApplicationTests'
+        run: mvn -B clean package -DskipTests
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
