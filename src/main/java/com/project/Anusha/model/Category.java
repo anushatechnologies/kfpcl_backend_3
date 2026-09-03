@@ -1,5 +1,6 @@
 package com.project.Anusha.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -13,23 +14,50 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Category {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     private String name;
 
     private String description;
 
+    @Column(name = "image_url", columnDefinition = "TEXT")
+    private String imageUrl;
+
+    @Column(name = "sort_order")
+    @Builder.Default
+    private Integer sortOrder = 1;
+
+    @Column(name = "is_active")
     @Builder.Default
     private Boolean isActive = true;
-
-    private String imageUrl;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @PrePersist
+    public void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (sortOrder == null) {
+            sortOrder = 1;
+        }
+        if (isActive == null) {
+            isActive = true;
+        }
+    }
+
+    public Category(String name, String imageUrl, Integer sortOrder, Boolean isActive) {
+        this.name = name;
+        this.imageUrl = imageUrl;
+        this.sortOrder = sortOrder;
+        this.isActive = isActive;
+    }
 }

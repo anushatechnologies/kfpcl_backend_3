@@ -2,11 +2,13 @@ package com.project.Anusha;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
-public class AnushaApplication {
+@EnableScheduling
+public class KfpclApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(AnushaApplication.class, args);
+        SpringApplication.run(KfpclApplication.class, args);
     }
 }
