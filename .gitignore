@@ -4,9 +4,10 @@ target/
 *.war
 *.ear
 
-# Sensitive local config overrides — never commit
+# Sensitive local config overrides
 src/main/resources/application-local.properties
-
+src/main/resources/*.json
+.env
 
 # IDE files
 .idea/
@@ -25,6 +26,10 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Environment / Secrets - DO NOT PUSH
-# application.properties contains DB credentials
-# If pushing to public repo, move DB credentials to environment variables
+# Other
+/.apt_generated/
+/.apt_generated_tests/
+*.p12
+*.jks
+admin_panel/
+Kfpcl_Backend2/
