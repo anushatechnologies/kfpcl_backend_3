@@ -17,6 +17,7 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
+    private final SupplierRepository supplierRepository;
     private final RfqRepository rfqRepository;
     private final RfqResponseRepository rfqResponseRepository;
     private final NotificationService notificationService;
@@ -26,6 +27,7 @@ public class DataInitializer implements CommandLineRunner {
             UserRepository userRepository,
             CategoryRepository categoryRepository,
             ProductRepository productRepository,
+            SupplierRepository supplierRepository,
             RfqRepository rfqRepository,
             RfqResponseRepository rfqResponseRepository,
             NotificationService notificationService,
@@ -34,6 +36,7 @@ public class DataInitializer implements CommandLineRunner {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.productRepository = productRepository;
+        this.supplierRepository = supplierRepository;
         this.rfqRepository = rfqRepository;
         this.rfqResponseRepository = rfqResponseRepository;
         this.notificationService = notificationService;
@@ -56,6 +59,12 @@ public class DataInitializer implements CommandLineRunner {
             return userRepository.save(b);
         });
 
+        // 1b. Seed Default Supplier
+        Supplier supplier = supplierRepository.findById("sup_101").orElseGet(() -> {
+            Supplier s = new Supplier("sup_101", "KFPCL Supplier", true, "9876543210", "9876543210", "Vijayawada", "AP");
+            return supplierRepository.save(s);
+        });
+
         // 2. Seed Category and Sample Product
         Category category = categoryRepository.findByIsActiveTrue().stream().findFirst().orElseGet(() -> {
             Category cat = Category.builder()
@@ -73,6 +82,7 @@ public class DataInitializer implements CommandLineRunner {
                     .name("Basmati Rice Premium")
                     .description("Premium aged long grain aromatic Basmati rice")
                     .category(category)
+                    .supplier(supplier)
                     .isActive(true)
                     .createdAt(LocalDateTime.now())
                     .build();
