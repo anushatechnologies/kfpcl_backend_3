@@ -4,8 +4,8 @@ target/
 *.war
 *.ear
 
-# Sensitive config — contains DB credentials, never push
-src/main/resources/application.properties
+# Sensitive local config overrides — never commit
+src/main/resources/application-local.properties
 
 
 # IDE files

@@ -3,14 +3,22 @@ package com.project.kfpcl_exports.config;
 import com.project.kfpcl_exports.model.*;
 import com.project.kfpcl_exports.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.DependsOn;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 @Component
+@Order(1)
+@DependsOn("entityManagerFactory")
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
 
     private final AdminUserRepository adminUserRepository;
     private final CategoryRepository categoryRepository;
@@ -24,8 +32,11 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        log.info("Starting DataInitializer: checking database seed data...");
+
         // Seed Admin Account
         if (adminUserRepository.findByEmail("admin@kfpclexports.com").isEmpty()) {
+            log.info("Seeding default Super Admin account (admin@kfpclexports.com)...");
             adminUserRepository.save(AdminUser.builder()
                     .email("admin@kfpclexports.com")
                     .password("admin123")
@@ -172,5 +183,7 @@ public class DataInitializer implements CommandLineRunner {
                         .build());
             }
         }
+
+        log.info("DataInitializer completed successfully.");
     }
 }
