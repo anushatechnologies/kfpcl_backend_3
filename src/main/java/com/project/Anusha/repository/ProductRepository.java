@@ -10,9 +10,12 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
+
+    Optional<Product> findByIdAndIsActiveTrue(Long id);
 
     List<Product> findTop10ByNameContainingIgnoreCaseAndIsActiveTrue(String name);
 
@@ -45,3 +48,4 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT p FROM Product p WHERE p.isActive = true ORDER BY p.id DESC")
     List<Product> findBestsellers(Pageable pageable);
 }
+

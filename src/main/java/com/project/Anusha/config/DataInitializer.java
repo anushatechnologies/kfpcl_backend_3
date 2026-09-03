@@ -1,0 +1,170 @@
+package com.project.Anusha.config;
+
+import com.project.Anusha.enums.NotificationType;
+import com.project.Anusha.enums.RfqStatus;
+import com.project.Anusha.model.*;
+import com.project.Anusha.repository.*;
+import com.project.Anusha.service.NotificationService;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
+
+@Component
+public class DataInitializer implements CommandLineRunner {
+
+    private final UserRepository userRepository;
+    private final CategoryRepository categoryRepository;
+    private final ProductRepository productRepository;
+    private final RfqRepository rfqRepository;
+    private final RfqResponseRepository rfqResponseRepository;
+    private final NotificationService notificationService;
+    private final PasswordEncoder passwordEncoder;
+
+    public DataInitializer(
+            UserRepository userRepository,
+            CategoryRepository categoryRepository,
+            ProductRepository productRepository,
+            RfqRepository rfqRepository,
+            RfqResponseRepository rfqResponseRepository,
+            NotificationService notificationService,
+            PasswordEncoder passwordEncoder
+    ) {
+        this.userRepository = userRepository;
+        this.categoryRepository = categoryRepository;
+        this.productRepository = productRepository;
+        this.rfqRepository = rfqRepository;
+        this.rfqResponseRepository = rfqResponseRepository;
+        this.notificationService = notificationService;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    @Override
+    public void run(String... args) {
+        // 1. Seed Buyer User
+        User buyer = userRepository.findByEmail("buyer1@kfpcl.com").orElseGet(() -> {
+            User b = User.builder()
+                    .email("buyer1@kfpcl.com")
+                    .name("Buyer One")
+                    .phoneNumber("9876543210")
+                    .password(passwordEncoder.encode("buyer123"))
+                    .role("ROLE_USER")
+                    .enabled(true)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            return userRepository.save(b);
+        });
+
+        // 2. Seed Category and Sample Product
+        Category category = categoryRepository.findByIsActiveTrue().stream().findFirst().orElseGet(() -> {
+            Category cat = Category.builder()
+                    .name("Grains & Cereals")
+                    .description("High quality agricultural grains and cereals")
+                    .isActive(true)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            return categoryRepository.save(cat);
+        });
+
+        Product product = productRepository.findById(1L).orElseGet(() -> {
+            Product p = Product.builder()
+                    .id(1L)
+                    .name("Basmati Rice Premium")
+                    .description("Premium aged long grain aromatic Basmati rice")
+                    .category(category)
+                    .isActive(true)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            return productRepository.save(p);
+        });
+
+        // 3. Seed Dummy Responded RFQ 1 (RFQ-2026-000001) for Acceptance Flow
+        if (rfqRepository.findByRfqCode("RFQ-2026-000001").isEmpty()) {
+            LocalDateTime now = LocalDateTime.now();
+            Rfq sampleRfq1 = Rfq.builder()
+                    .rfqCode("RFQ-2026-000001")
+                    .buyer(buyer)
+                    .product(product)
+                    .quantity("1000 KG")
+                    .deliveryLocation("Vijayawada")
+                    .buyerMessage("Need best quotation including transport")
+                    .status(RfqStatus.RESPONDED)
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            Rfq savedRfq1 = rfqRepository.save(sampleRfq1);
+
+            RfqResponse dummyAdminResponse1 = RfqResponse.builder()
+                    .rfq(savedRfq1)
+                    .quotedPrice(62000.0)
+                    .availableQuantity("1000 KG")
+                    .deliveryTime("4 Days")
+                    .responseMessage("Price includes transportation to Vijayawada")
+                    .contactName("KFPCL Sales Team")
+                    .contactPhone("9876543210")
+                    .contactEmail("sales@kfpcl.com")
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            rfqResponseRepository.save(dummyAdminResponse1);
+            savedRfq1.getResponses().add(dummyAdminResponse1);
+            rfqRepository.save(savedRfq1);
+
+            notificationService.createNotification(
+                    buyer,
+                    NotificationType.RFQ_RESPONSE_RECEIVED,
+                    "RFQ Response Received",
+                    "A response has been received for RFQ RFQ-2026-000001.",
+                    "RFQ",
+                    "RFQ-2026-000001"
+            );
+        }
+
+        // 4. Seed Dummy Responded RFQ 2 (RFQ-2026-000002) for Rejection & Re-raise Flow
+        if (rfqRepository.findByRfqCode("RFQ-2026-000002").isEmpty()) {
+            LocalDateTime now = LocalDateTime.now();
+            Rfq sampleRfq2 = Rfq.builder()
+                    .rfqCode("RFQ-2026-000002")
+                    .buyer(buyer)
+                    .product(product)
+                    .quantity("2000 KG")
+                    .deliveryLocation("Guntur")
+                    .buyerMessage("Looking for volume discount for 2000 KG")
+                    .status(RfqStatus.RESPONDED)
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            Rfq savedRfq2 = rfqRepository.save(sampleRfq2);
+
+            RfqResponse dummyAdminResponse2 = RfqResponse.builder()
+                    .rfq(savedRfq2)
+                    .quotedPrice(140000.0)
+                    .availableQuantity("2000 KG")
+                    .deliveryTime("6 Days")
+                    .responseMessage("Standard bulk pricing applies (Dummy Admin Quotation)")
+                    .contactName("KFPCL Sales Executive")
+                    .contactPhone("9876543210")
+                    .contactEmail("sales@kfpcl.com")
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            rfqResponseRepository.save(dummyAdminResponse2);
+            savedRfq2.getResponses().add(dummyAdminResponse2);
+            rfqRepository.save(savedRfq2);
+
+            notificationService.createNotification(
+                    buyer,
+                    NotificationType.RFQ_RESPONSE_RECEIVED,
+                    "RFQ Response Received",
+                    "A response has been received for RFQ RFQ-2026-000002.",
+                    "RFQ",
+                    "RFQ-2026-000002"
+            );
+        }
+    }
+}

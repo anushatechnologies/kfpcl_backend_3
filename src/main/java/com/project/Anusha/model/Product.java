@@ -2,6 +2,9 @@ package com.project.Anusha.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -10,6 +13,11 @@ import java.util.List;
 @Entity
 @Table(name = "products")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Product {
 
     @Id
@@ -19,10 +27,13 @@ public class Product {
     @Column(nullable = false, length = 150)
     private String name;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     @Column(length = 100)
     private String brand;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "category_id")
     private Category category;
 
@@ -34,18 +45,22 @@ public class Product {
     @JoinColumn(name = "supplier_id")
     private Supplier supplier;
 
-    @Column(name = "main_image_url", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "main_image_url", columnDefinition = "TEXT")
     private String mainImageUrl;
+
+    @Column(name = "image_url", columnDefinition = "TEXT")
+    private String imageUrl;
 
     @ElementCollection
     @CollectionTable(name = "product_gallery_images", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "image_url", columnDefinition = "TEXT")
+    @Builder.Default
     private List<String> galleryImages = new ArrayList<>();
 
-    @Column(name = "min_order_quantity", nullable = false, length = 50)
+    @Column(name = "min_order_quantity", length = 50)
     private String minOrderQuantity;
 
-    @Column(name = "indicative_price", nullable = false, length = 50)
+    @Column(name = "indicative_price", length = 50)
     private String indicativePrice;
 
     @Column(name = "numeric_price")
@@ -55,9 +70,11 @@ public class Product {
     private String specifications;
 
     @Column(name = "is_active")
+    @Builder.Default
     private Boolean isActive = true;
 
-    @Column(name = "created_at")
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
@@ -65,49 +82,22 @@ public class Product {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+        if (isActive == null) {
+            isActive = true;
+        }
+        if (imageUrl == null && mainImageUrl != null) {
+            imageUrl = mainImageUrl;
+        } else if (mainImageUrl == null && imageUrl != null) {
+            mainImageUrl = imageUrl;
+        }
     }
 
-    public Product() {}
+    public String getImageUrl() {
+        return imageUrl != null ? imageUrl : mainImageUrl;
+    }
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-
-    public String getBrand() { return brand; }
-    public void setBrand(String brand) { this.brand = brand; }
-
-    public Category getCategory() { return category; }
-    public void setCategory(Category category) { this.category = category; }
-
-    public Subcategory getSubcategory() { return subcategory; }
-    public void setSubcategory(Subcategory subcategory) { this.subcategory = subcategory; }
-
-    public Supplier getSupplier() { return supplier; }
-    public void setSupplier(Supplier supplier) { this.supplier = supplier; }
-
-    public String getMainImageUrl() { return mainImageUrl; }
-    public void setMainImageUrl(String mainImageUrl) { this.mainImageUrl = mainImageUrl; }
-
-    public List<String> getGalleryImages() { return galleryImages; }
-    public void setGalleryImages(List<String> galleryImages) { this.galleryImages = galleryImages; }
-
-    public String getMinOrderQuantity() { return minOrderQuantity; }
-    public void setMinOrderQuantity(String minOrderQuantity) { this.minOrderQuantity = minOrderQuantity; }
-
-    public String getIndicativePrice() { return indicativePrice; }
-    public void setIndicativePrice(String indicativePrice) { this.indicativePrice = indicativePrice; }
-
-    public BigDecimal getNumericPrice() { return numericPrice; }
-    public void setNumericPrice(BigDecimal numericPrice) { this.numericPrice = numericPrice; }
-
-    public String getSpecifications() { return specifications; }
-    public void setSpecifications(String specifications) { this.specifications = specifications; }
-
-    public Boolean getIsActive() { return isActive; }
-    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public String getMainImageUrl() {
+        return mainImageUrl != null ? mainImageUrl : imageUrl;
+    }
 }
+
