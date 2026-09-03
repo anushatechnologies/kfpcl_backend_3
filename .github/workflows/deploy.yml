@@ -1,4 +1,4 @@
-name: Build and Push to ECR
+name: KFPCL Backend CI/CD
 
 on:
   push:
@@ -9,28 +9,47 @@ env:
   AWS_REGION: ap-south-2
   ECR_REGISTRY: 319759856065.dkr.ecr.ap-south-2.amazonaws.com
   ECR_REPOSITORY: kfpcl-backend
+  ECS_CLUSTER: kfpcl-cluster
+  ECS_SERVICE: kfpcl-backend-service
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  build-and-push:
+
+  # ==========================================
+  # 1. BUILD
+  # ==========================================
+  build:
+    name: 1. Build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
 
-      - name: Build
+      - name: Build application
         run: mvn -B clean package -DskipTests
+
+  # ==========================================
+  # 2. PUSH TO ECR
+  # ==========================================
+  push-to-ecr:
+    name: 2. Push to ECR
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -51,10 +70,41 @@ jobs:
             ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
             ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
 
-      - name: Push Docker image
+      - name: Push image to ECR
         run: |
           docker push \
             ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
           docker push \
             ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+
+  # ==========================================
+  # 3. DEPLOY TO ECS
+  # ==========================================
+  deploy:
+    name: 3. Deploy to ECS
+    needs: push-to-ecr
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy latest image to ECS
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --force-new-deployment
+
+      - name: Wait for ECS deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }}
+
+      - name: Deployment completed
+        run: echo "KFPCL backend deployed successfully!"
