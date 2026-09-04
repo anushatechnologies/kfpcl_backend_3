@@ -28,7 +28,19 @@ public class Subcategory {
 
     private String categoryName;
 
+    @com.fasterxml.jackson.annotation.JsonAlias({"image", "icon", "subcategoryImage", "subcategory_image"})
     private String imageUrl;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("image")
+    public String getImage() {
+        return imageUrl;
+    }
+
+    public void setImage(String image) {
+        if (image != null && !image.isEmpty()) {
+            this.imageUrl = image;
+        }
+    }
 
     private Boolean active;
 

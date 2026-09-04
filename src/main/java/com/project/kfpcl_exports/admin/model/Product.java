@@ -43,7 +43,30 @@ public class Product {
 
     private String subcategoryName;
 
+    @com.fasterxml.jackson.annotation.JsonAlias({"imageUrl", "image", "mainImage", "productImage", "photo"})
     private String mainImageUrl;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("imageUrl")
+    public String getImageUrl() {
+        return mainImageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        if (imageUrl != null && !imageUrl.isEmpty()) {
+            this.mainImageUrl = imageUrl;
+        }
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("image")
+    public String getImage() {
+        return mainImageUrl;
+    }
+
+    public void setImage(String image) {
+        if (image != null && !image.isEmpty()) {
+            this.mainImageUrl = image;
+        }
+    }
 
     private Double rating;
 

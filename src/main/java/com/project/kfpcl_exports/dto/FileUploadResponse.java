@@ -20,4 +20,14 @@ public class FileUploadResponse {
     private Long fileSize;
     private String contentType;
     private LocalDateTime uploadedAt;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("imageUrl")
+    public String getImageUrl() {
+        return url;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("image")
+    public String getImage() {
+        return url;
+    }
 }

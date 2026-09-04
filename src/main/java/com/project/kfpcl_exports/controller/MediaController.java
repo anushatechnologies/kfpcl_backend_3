@@ -21,7 +21,17 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @RestController
-@RequestMapping({"/api/media", "/api/admin/media"})
+@RequestMapping({
+        "/api/media",
+        "/api/admin/media",
+        "/api/upload",
+        "/api/admin/upload",
+        "/api/image",
+        "/api/images",
+        "/api/products/upload",
+        "/api/categories/upload",
+        "/api/subcategories/upload"
+})
 @RequiredArgsConstructor
 public class MediaController {
 
@@ -31,15 +41,23 @@ public class MediaController {
 
     /**
      * Upload an image to S3.
-     * Accessible at POST /api/media/upload and POST /api/admin/media/upload
+     * Supports both 'file' and 'image' multipart form parameter names.
      */
-    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = {"/upload", "/image", ""}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadFile(
-            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "image", required = false) MultipartFile image,
             @RequestParam(value = "folder", required = false, defaultValue = "products") String folder
     ) {
         try {
-            FileUploadResponse response = s3Service.uploadImage(file, folder);
+            MultipartFile targetFile = (file != null && !file.isEmpty()) ? file : image;
+            if (targetFile == null || targetFile.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "No file provided. Please attach a file under form field 'file' or 'image'.",
+                        "success", false
+                ));
+            }
+            FileUploadResponse response = s3Service.uploadImage(targetFile, folder);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid upload request: {}", e.getMessage());
@@ -49,6 +67,39 @@ public class MediaController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Image upload failed: " + e.getMessage(), "success", false));
         }
+    }
+
+    /**
+     * Upload product image.
+     */
+    @PostMapping(value = "/products/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadProductImage(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "image", required = false) MultipartFile image
+    ) {
+        return uploadFile(file, image, "products");
+    }
+
+    /**
+     * Upload category image.
+     */
+    @PostMapping(value = "/categories/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadCategoryImage(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "image", required = false) MultipartFile image
+    ) {
+        return uploadFile(file, image, "categories");
+    }
+
+    /**
+     * Upload subcategory image.
+     */
+    @PostMapping(value = "/subcategories/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadSubcategoryImage(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "image", required = false) MultipartFile image
+    ) {
+        return uploadFile(file, image, "subcategories");
     }
 
     /**

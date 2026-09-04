@@ -17,7 +17,19 @@ public class ProductImage {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @com.fasterxml.jackson.annotation.JsonAlias({"image", "url"})
     private String imageUrl;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("image")
+    public String getImage() {
+        return imageUrl;
+    }
+
+    public void setImage(String image) {
+        if (image != null && !image.isEmpty()) {
+            this.imageUrl = image;
+        }
+    }
 
     private Boolean isPrimary;
 

@@ -24,7 +24,19 @@ public class Category {
     @Column(length = 1000)
     private String description;
 
+    @com.fasterxml.jackson.annotation.JsonAlias({"image", "icon", "categoryImage", "category_image"})
     private String imageUrl;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("image")
+    public String getImage() {
+        return imageUrl;
+    }
+
+    public void setImage(String image) {
+        if (image != null && !image.isEmpty()) {
+            this.imageUrl = image;
+        }
+    }
 
     private Double discount; // e.g. 10.0 for 10% discount
 
