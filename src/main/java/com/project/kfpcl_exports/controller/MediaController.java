@@ -17,6 +17,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -71,24 +72,30 @@ public class MediaController {
 
             FileUploadResponse response = s3Service.uploadImage(targetFile, targetFolder);
 
-            Map<String, Object> dataMap = Map.of(
-                    "url", response.getUrl(),
-                    "storageKey", response.getKey(),
-                    "key", response.getKey(),
-                    "imageUrl", response.getUrl()
-            );
+            Map<String, Object> dataMap = new HashMap<>();
+            dataMap.put("url", response.getUrl());
+            dataMap.put("storageKey", response.getKey());
+            dataMap.put("key", response.getKey());
+            dataMap.put("imageUrl", response.getUrl());
+            if (response.getPresignedUrl() != null) {
+                dataMap.put("presignedUrl", response.getPresignedUrl());
+            }
 
-            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                    "success", true,
-                    "message", "Image uploaded successfully",
-                    "url", response.getUrl(),
-                    "imageUrl", response.getUrl(),
-                    "image", response.getUrl(),
-                    "key", response.getKey(),
-                    "storageKey", response.getKey(),
-                    "data", dataMap,
-                    "fileUploadResponse", response
-            ));
+            Map<String, Object> bodyMap = new HashMap<>();
+            bodyMap.put("success", true);
+            bodyMap.put("message", "Image uploaded successfully");
+            bodyMap.put("url", response.getUrl());
+            bodyMap.put("imageUrl", response.getUrl());
+            bodyMap.put("image", response.getUrl());
+            bodyMap.put("key", response.getKey());
+            bodyMap.put("storageKey", response.getKey());
+            if (response.getPresignedUrl() != null) {
+                bodyMap.put("presignedUrl", response.getPresignedUrl());
+            }
+            bodyMap.put("data", dataMap);
+            bodyMap.put("fileUploadResponse", response);
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(bodyMap);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid upload request: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage(), "success", false));

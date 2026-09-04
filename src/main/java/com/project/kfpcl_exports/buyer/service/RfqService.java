@@ -109,7 +109,7 @@ public class RfqService {
                 .quantity(request.getQuantity() != null ? request.getQuantity() : "1")
                 .deliveryLocation(request.getDeliveryLocation() != null ? request.getDeliveryLocation() : "Default Location")
                 .buyerMessage(request.getBuyerMessage())
-                .status(RfqStatus.SUBMITTED)
+                .status(RfqStatus.PENDING)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();

@@ -91,13 +91,25 @@ public class DataInitializer implements CommandLineRunner {
             return adminProductRepository.save(ap);
         });
 
+        Product buyerProduct = productRepository.findById(1L).orElseGet(() -> {
+            Product bp = Product.builder()
+                    .id(1L)
+                    .name("Basmati Rice Premium")
+                    .description("Premium aged long grain aromatic Basmati rice")
+                    .category(category)
+                    .isActive(true)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            return productRepository.save(bp);
+        });
+
         // 3. Seed Dummy Responded RFQ 1 (RFQ-2026-000001) for Acceptance Flow
         if (rfqRepository.findByRfqCode("RFQ-2026-000001").isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
             Rfq sampleRfq1 = Rfq.builder()
                     .rfqCode("RFQ-2026-000001")
                     .buyer(buyer)
-                    .product(adminProduct)
+                    .product(buyerProduct)
                     .quantity("1000 KG")
                     .deliveryLocation("Vijayawada")
                     .buyerMessage("Need best quotation including transport")
@@ -141,7 +153,7 @@ public class DataInitializer implements CommandLineRunner {
             Rfq sampleRfq2 = Rfq.builder()
                     .rfqCode("RFQ-2026-000002")
                     .buyer(buyer)
-                    .product(adminProduct)
+                    .product(buyerProduct)
                     .quantity("2000 KG")
                     .deliveryLocation("Guntur")
                     .buyerMessage("Looking for volume discount for 2000 KG")

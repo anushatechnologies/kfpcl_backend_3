@@ -116,5 +116,17 @@ public class Product {
     public String getMainImageUrl() {
         return mainImageUrl != null ? mainImageUrl : imageUrl;
     }
+
+    public Double getPrice() {
+        if (numericPrice != null) {
+            return numericPrice.doubleValue();
+        }
+        if (indicativePrice != null) {
+            try {
+                return Double.parseDouble(indicativePrice.replaceAll("[^0-9.]", ""));
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
 }
 
