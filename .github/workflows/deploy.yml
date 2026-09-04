@@ -102,9 +102,80 @@ jobs:
 
       - name: Wait for ECS deployment
         run: |
-          aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE }}
+          CLUSTER="${{ env.ECS_CLUSTER }}"
+          SERVICE="${{ env.ECS_SERVICE }}"
+          TIMEOUT_SECONDS=900
+          POLL_INTERVAL=30
+          ELAPSED=0
+
+          echo "Starting controlled polling for ECS service '$SERVICE' in cluster '$CLUSTER'..."
+          echo "Timeout: ${TIMEOUT_SECONDS}s (15 min) | Interval: ${POLL_INTERVAL}s"
+
+          while [ $ELAPSED -lt $TIMEOUT_SECONDS ]; do
+            DESC=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --output json)
+            
+            RUNNING_COUNT=$(echo "$DESC" | jq -r '.services[0].runningCount // 0')
+            PENDING_COUNT=$(echo "$DESC" | jq -r '.services[0].pendingCount // 0')
+            DESIRED_COUNT=$(echo "$DESC" | jq -r '.services[0].desiredCount // 0')
+            DEPLOYMENTS_COUNT=$(echo "$DESC" | jq -r '.services[0].deployments | length')
+            
+            PRIMARY_RUNNING=$(echo "$DESC" | jq -r '.services[0].deployments[] | select(.status=="PRIMARY") | .runningCount // 0')
+            PRIMARY_DESIRED=$(echo "$DESC" | jq -r '.services[0].deployments[] | select(.status=="PRIMARY") | .desiredCount // 0')
+            ROLLOUT_STATE=$(echo "$DESC" | jq -r '.services[0].deployments[] | select(.status=="PRIMARY") | .rolloutState // "N/A"')
+
+            echo "[${ELAPSED}s / ${TIMEOUT_SECONDS}s] Running: $RUNNING_COUNT/$DESIRED_COUNT | Pending: $PENDING_COUNT | Deployments: $DEPLOYMENTS_COUNT | Primary Running: $PRIMARY_RUNNING/$PRIMARY_DESIRED | RolloutState: $ROLLOUT_STATE"
+
+            if [ "$ROLLOUT_STATE" = "FAILED" ]; then
+              echo "ERROR: ECS Deployment Rollout State is FAILED."
+              echo "=== Recent ECS Service Events ==="
+              echo "$DESC" | jq -r '.services[0].events[:10][] | "\(.createdAt) - \(.message)"'
+              exit 1
+            fi
+
+            if [ "$RUNNING_COUNT" -eq "$DESIRED_COUNT" ] && \
+               [ "$PENDING_COUNT" -eq 0 ] && \
+               [ "$DEPLOYMENTS_COUNT" -eq 1 ] && \
+               [ "$PRIMARY_RUNNING" -eq "$PRIMARY_DESIRED" ] && \
+               { [ "$ROLLOUT_STATE" = "COMPLETED" ] || [ "$ROLLOUT_STATE" = "N/A" ]; }; then
+              echo "SUCCESS: ECS Service '$SERVICE' is stable and deployment is completed!"
+              exit 0
+            fi
+
+            sleep $POLL_INTERVAL
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          done
+
+          echo "WARNING: Polling reached maximum timeout (${TIMEOUT_SECONDS}s)."
+
+          DESC=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --output json)
+          RUNNING_COUNT=$(echo "$DESC" | jq -r '.services[0].runningCount // 0')
+          PENDING_COUNT=$(echo "$DESC" | jq -r '.services[0].pendingCount // 0')
+          DESIRED_COUNT=$(echo "$DESC" | jq -r '.services[0].desiredCount // 0')
+          DEPLOYMENTS_COUNT=$(echo "$DESC" | jq -r '.services[0].deployments | length')
+          PRIMARY_RUNNING=$(echo "$DESC" | jq -r '.services[0].deployments[] | select(.status=="PRIMARY") | .runningCount // 0')
+          PRIMARY_DESIRED=$(echo "$DESC" | jq -r '.services[0].deployments[] | select(.status=="PRIMARY") | .desiredCount // 0')
+          ROLLOUT_STATE=$(echo "$DESC" | jq -r '.services[0].deployments[] | select(.status=="PRIMARY") | .rolloutState // "N/A"')
+
+          echo "=== Final ECS Service Status ==="
+          echo "Running Count: $RUNNING_COUNT / Desired: $DESIRED_COUNT"
+          echo "Pending Count: $PENDING_COUNT"
+          echo "Deployments Count: $DEPLOYMENTS_COUNT"
+          echo "Primary Deployment Running: $PRIMARY_RUNNING / Desired: $PRIMARY_DESIRED"
+          echo "Rollout State: $ROLLOUT_STATE"
+
+          echo "=== Active Deployments ==="
+          echo "$DESC" | jq -r '.services[0].deployments[]'
+
+          echo "=== Recent ECS Service Events ==="
+          echo "$DESC" | jq -r '.services[0].events[:10][] | "\(.createdAt) - \(.message)"'
+
+          if [ "$RUNNING_COUNT" -eq "$DESIRED_COUNT" ] && [ "$PENDING_COUNT" -eq 0 ] && [ "$PRIMARY_RUNNING" -eq "$PRIMARY_DESIRED" ]; then
+            echo "NOTICE: Service running count matches desired count and primary deployment is healthy. Marking deployment as successful."
+            exit 0
+          else
+            echo "ERROR: Service is not stable (Running: $RUNNING_COUNT, Pending: $PENDING_COUNT, Desired: $DESIRED_COUNT)."
+            exit 1
+          fi
 
       - name: Deployment completed
         run: echo "KFPCL backend deployed successfully!"
