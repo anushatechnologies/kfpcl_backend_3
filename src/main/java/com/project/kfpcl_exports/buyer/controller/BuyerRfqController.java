@@ -39,7 +39,19 @@ public class BuyerRfqController {
             @Valid @RequestBody BuyerCreateRfqRequest request,
             HttpServletRequest httpRequest
     ) {
-        User buyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
+        String identifier = null;
+        if (request != null) {
+            if (request.getEmail() != null && !request.getEmail().isBlank()) identifier = request.getEmail();
+            else if (request.getUserEmail() != null && !request.getUserEmail().isBlank()) identifier = request.getUserEmail();
+            else if (request.getPhone() != null && !request.getPhone().isBlank()) identifier = request.getPhone();
+            else if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank()) identifier = request.getPhoneNumber();
+        }
+        User buyer;
+        if (identifier != null && !identifier.isBlank()) {
+            buyer = buyerAuthHelper.resolveFromIdentifier(identifier);
+        } else {
+            buyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
+        }
         BuyerRfqResponseDto response = rfqService.createRfq(buyer, request);
         return new ResponseEntity<>(ApiResponse.ok("RFQ created successfully", response), HttpStatus.CREATED);
     }
@@ -52,11 +64,20 @@ public class BuyerRfqController {
     public ResponseEntity<ApiResponse<Page<BuyerRfqResponseDto>>> getBuyerRfqs(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(required = false) RfqStatus status,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String userEmail,
+            @RequestParam(required = false) String phone,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             HttpServletRequest httpRequest
     ) {
-        User buyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
+        String targetIdentifier = (email != null && !email.isBlank()) ? email : ((userEmail != null && !userEmail.isBlank()) ? userEmail : phone);
+        User buyer;
+        if (targetIdentifier != null && !targetIdentifier.isBlank()) {
+            buyer = buyerAuthHelper.resolveFromIdentifier(targetIdentifier);
+        } else {
+            buyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
+        }
         Pageable pageable = PageRequest.of(page, size);
         Page<BuyerRfqResponseDto> responses = rfqService.getBuyerRfqs(buyer, status, pageable);
         return ResponseEntity.ok(ApiResponse.ok("Buyer RFQs fetched successfully", responses));

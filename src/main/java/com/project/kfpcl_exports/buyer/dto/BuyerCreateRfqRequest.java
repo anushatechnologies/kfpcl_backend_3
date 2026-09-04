@@ -23,4 +23,9 @@ public class BuyerCreateRfqRequest {
     private String deliveryLocation;
 
     private String buyerMessage;
+
+    private String email;
+    private String userEmail;
+    private String phone;
+    private String phoneNumber;
 }
