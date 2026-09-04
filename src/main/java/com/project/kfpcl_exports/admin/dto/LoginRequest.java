@@ -1,9 +1,0 @@
-package com.project.kfpcl_exports.admin.dto;
-
-import lombok.Data;
-
-@Data
-public class LoginRequest {
-    private String email;
-    private String password;
-}
