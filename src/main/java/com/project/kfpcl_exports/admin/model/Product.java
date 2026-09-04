@@ -80,6 +80,7 @@ public class Product {
     @Builder.Default
     private List<ProductImage> images = new ArrayList<>();
 
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @PrePersist
