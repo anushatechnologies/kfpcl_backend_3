@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController("buyerRatingController")
 @RequestMapping("/api/customer/products/rating")
-@CrossOrigin(origins = "*")
 public class RatingController {
 
     @Autowired

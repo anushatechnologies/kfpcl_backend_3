@@ -19,7 +19,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/buyer/rfqs")
-@CrossOrigin(origins = "*")
 public class BuyerRfqController {
 
     private final RfqService rfqService;

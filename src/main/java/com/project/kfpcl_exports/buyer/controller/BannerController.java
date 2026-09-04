@@ -10,7 +10,6 @@ import java.util.List;
 
 @RestController("buyerBannerController")
 @RequestMapping("/api/customer/banners")
-@CrossOrigin(origins = "*")
 public class BannerController {
 
     @Autowired
