@@ -14,6 +14,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 @RestController("adminRfqController")
 @RequestMapping({"/api/admin/rfqs", "/api/rfqs/admin"})
 @RequiredArgsConstructor
+@Transactional
 public class RfqController {
 
     private static final Logger log = LoggerFactory.getLogger(RfqController.class);
@@ -58,7 +60,7 @@ public class RfqController {
             map.put("productName", rfq.getProduct().getTitle());
             map.put("productImage", rfq.getProduct().getMainImageUrl());
             map.put("mainImageUrl", rfq.getProduct().getMainImageUrl());
-            map.put("price", rfq.getProduct().getPrice());
+            map.put("price", rfq.getProduct().getIndicativePrice());
         }
 
         if (rfq.getLatestResponse() != null) {
