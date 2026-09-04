@@ -42,6 +42,27 @@ public class Subcategory {
         }
     }
 
+    @com.fasterxml.jackson.annotation.JsonAlias({"order", "sortOrder", "sort_order", "display_order"})
+    @Column(name = "display_order")
+    @Builder.Default
+    private Integer displayOrder = 0;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("displayOrder")
+    public Integer getDisplayOrder() {
+        return displayOrder != null ? displayOrder : 0;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("order")
+    public Integer getOrder() {
+        return displayOrder != null ? displayOrder : 0;
+    }
+
+    public void setOrder(Integer order) {
+        if (order != null) {
+            this.displayOrder = order;
+        }
+    }
+
     private Boolean active;
 
     private Boolean deleted;
@@ -58,6 +79,9 @@ public class Subcategory {
         }
         if (deleted == null) {
             deleted = false;
+        }
+        if (displayOrder == null) {
+            displayOrder = 0;
         }
     }
 }

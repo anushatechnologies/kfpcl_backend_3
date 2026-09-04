@@ -40,6 +40,27 @@ public class Category {
 
     private Double discount; // e.g. 10.0 for 10% discount
 
+    @com.fasterxml.jackson.annotation.JsonAlias({"order", "sortOrder", "sort_order", "display_order"})
+    @Column(name = "display_order")
+    @Builder.Default
+    private Integer displayOrder = 0;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("displayOrder")
+    public Integer getDisplayOrder() {
+        return displayOrder != null ? displayOrder : 0;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("order")
+    public Integer getOrder() {
+        return displayOrder != null ? displayOrder : 0;
+    }
+
+    public void setOrder(Integer order) {
+        if (order != null) {
+            this.displayOrder = order;
+        }
+    }
+
     private Boolean active;
 
     private Boolean deleted;
@@ -59,6 +80,9 @@ public class Category {
         }
         if (discount == null) {
             discount = 0.0;
+        }
+        if (displayOrder == null) {
+            displayOrder = 0;
         }
     }
 }

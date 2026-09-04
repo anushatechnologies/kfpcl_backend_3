@@ -31,7 +31,8 @@ public class DataInitializer implements CommandLineRunner {
             RfqRepository rfqRepository,
             RfqResponseRepository rfqResponseRepository,
             NotificationService notificationService,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            com.project.kfpcl_exports.admin.repository.ProductRepository adminProductRepository
     ) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
@@ -41,7 +42,10 @@ public class DataInitializer implements CommandLineRunner {
         this.rfqResponseRepository = rfqResponseRepository;
         this.notificationService = notificationService;
         this.passwordEncoder = passwordEncoder;
+        this.adminProductRepository = adminProductRepository;
     }
+
+    private final com.project.kfpcl_exports.admin.repository.ProductRepository adminProductRepository;
 
     @Override
     public void run(String... args) {
@@ -76,17 +80,15 @@ public class DataInitializer implements CommandLineRunner {
             return categoryRepository.save(cat);
         });
 
-        Product product = productRepository.findById(1L).orElseGet(() -> {
-            Product p = Product.builder()
+        com.project.kfpcl_exports.admin.model.Product adminProduct = adminProductRepository.findById(1L).orElseGet(() -> {
+            com.project.kfpcl_exports.admin.model.Product ap = com.project.kfpcl_exports.admin.model.Product.builder()
                     .id(1L)
-                    .name("Basmati Rice Premium")
+                    .title("Basmati Rice Premium")
                     .description("Premium aged long grain aromatic Basmati rice")
-                    .category(category)
-                    .supplier(supplier)
-                    .isActive(true)
+                    .active(true)
                     .createdAt(LocalDateTime.now())
                     .build();
-            return productRepository.save(p);
+            return adminProductRepository.save(ap);
         });
 
         // 3. Seed Dummy Responded RFQ 1 (RFQ-2026-000001) for Acceptance Flow
@@ -95,7 +97,7 @@ public class DataInitializer implements CommandLineRunner {
             Rfq sampleRfq1 = Rfq.builder()
                     .rfqCode("RFQ-2026-000001")
                     .buyer(buyer)
-                    .product(product)
+                    .product(adminProduct)
                     .quantity("1000 KG")
                     .deliveryLocation("Vijayawada")
                     .buyerMessage("Need best quotation including transport")
@@ -139,7 +141,7 @@ public class DataInitializer implements CommandLineRunner {
             Rfq sampleRfq2 = Rfq.builder()
                     .rfqCode("RFQ-2026-000002")
                     .buyer(buyer)
-                    .product(product)
+                    .product(adminProduct)
                     .quantity("2000 KG")
                     .deliveryLocation("Guntur")
                     .buyerMessage("Looking for volume discount for 2000 KG")

@@ -30,7 +30,9 @@ import java.util.concurrent.TimeUnit;
         "/api/images",
         "/api/products/upload",
         "/api/categories/upload",
-        "/api/subcategories/upload"
+        "/api/subcategories/upload",
+        "/api/sections/upload",
+        "/api/section/upload"
 })
 @RequiredArgsConstructor
 public class MediaController {
@@ -40,14 +42,16 @@ public class MediaController {
     private final S3Service s3Service;
 
     /**
-     * Upload an image to S3.
-     * Supports both 'file' and 'image' multipart form parameter names.
+     * Upload an image to S3 via POST /api/media/upload or /api/upload.
+     * Supports form parameters: 'file' or 'image' (MultipartFile)
+     * Supports folder or type parameter: 'category', 'subcategory', 'products', 'banners', 'store' (or uppercase equivalents)
      */
     @PostMapping(value = {"/upload", "/image", ""}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadFile(
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam(value = "image", required = false) MultipartFile image,
-            @RequestParam(value = "folder", required = false, defaultValue = "products") String folder
+            @RequestParam(value = "folder", required = false) String folderParam,
+            @RequestParam(value = "type", required = false) String typeParam
     ) {
         try {
             MultipartFile targetFile = (file != null && !file.isEmpty()) ? file : image;
@@ -57,8 +61,34 @@ public class MediaController {
                         "success", false
                 ));
             }
-            FileUploadResponse response = s3Service.uploadImage(targetFile, folder);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+            String targetFolder = "products";
+            String rawType = (typeParam != null && !typeParam.trim().isEmpty()) ? typeParam.trim() : folderParam;
+            if (rawType != null && !rawType.trim().isEmpty()) {
+                String t = rawType.trim().toLowerCase();
+                targetFolder = t.endsWith("s") ? t : t + "s";
+            }
+
+            FileUploadResponse response = s3Service.uploadImage(targetFile, targetFolder);
+
+            Map<String, Object> dataMap = Map.of(
+                    "url", response.getUrl(),
+                    "storageKey", response.getKey(),
+                    "key", response.getKey(),
+                    "imageUrl", response.getUrl()
+            );
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                    "success", true,
+                    "message", "Image uploaded successfully",
+                    "url", response.getUrl(),
+                    "imageUrl", response.getUrl(),
+                    "image", response.getUrl(),
+                    "key", response.getKey(),
+                    "storageKey", response.getKey(),
+                    "data", dataMap,
+                    "fileUploadResponse", response
+            ));
         } catch (IllegalArgumentException e) {
             log.warn("Invalid upload request: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage(), "success", false));
@@ -77,7 +107,7 @@ public class MediaController {
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam(value = "image", required = false) MultipartFile image
     ) {
-        return uploadFile(file, image, "products");
+        return uploadFile(file, image, "products", "products");
     }
 
     /**
@@ -88,7 +118,7 @@ public class MediaController {
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam(value = "image", required = false) MultipartFile image
     ) {
-        return uploadFile(file, image, "categories");
+        return uploadFile(file, image, "categories", "categories");
     }
 
     /**
@@ -99,7 +129,42 @@ public class MediaController {
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam(value = "image", required = false) MultipartFile image
     ) {
-        return uploadFile(file, image, "subcategories");
+        return uploadFile(file, image, "subcategories", "subcategories");
+    }
+
+    /**
+     * Upload banner image.
+     */
+    @PostMapping(value = "/banners/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadBannerImage(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "image", required = false) MultipartFile image
+    ) {
+        return uploadFile(file, image, "banners", "banners");
+    }
+
+    /**
+     * Upload store image.
+     */
+    @PostMapping(value = "/stores/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadStoreImage(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "image", required = false) MultipartFile image
+    ) {
+        return uploadFile(file, image, "stores", "stores");
+    }
+
+    /**
+     * Upload section image.
+     */
+    @PostMapping(value = {"/sections/upload-image", "/section/upload-image"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadSectionImage(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "image", required = false) MultipartFile image,
+            @RequestParam(value = "sectionImage", required = false) MultipartFile sectionImage
+    ) {
+        MultipartFile targetFile = (file != null && !file.isEmpty()) ? file : ((image != null && !image.isEmpty()) ? image : sectionImage);
+        return uploadFile(targetFile, null, "sections", "sections");
     }
 
     /**

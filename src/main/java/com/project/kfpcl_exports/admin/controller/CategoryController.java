@@ -61,6 +61,9 @@ public class CategoryController {
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "description", required = false) String description,
             @RequestParam(value = "discount", required = false) Double discount,
+            @RequestParam(value = "displayOrder", required = false) Integer displayOrder,
+            @RequestParam(value = "order", required = false) Integer order,
+            @RequestParam(value = "sortOrder", required = false) Integer sortOrder,
             @RequestParam(value = "active", required = false) Boolean active,
             @RequestParam(value = "imageUrl", required = false) String imageUrl,
             @RequestParam(value = "category", required = false) String categoryJson,
@@ -83,6 +86,8 @@ public class CategoryController {
             if (StringUtils.hasText(name)) category.setName(name);
             if (description != null) category.setDescription(description);
             if (discount != null) category.setDiscount(discount);
+            Integer targetOrder = getFirstNonNull(displayOrder, order, sortOrder);
+            if (targetOrder != null) category.setDisplayOrder(targetOrder);
             if (active != null) category.setActive(active);
             if (StringUtils.hasText(imageUrl)) category.setImageUrl(imageUrl);
 
@@ -120,6 +125,7 @@ public class CategoryController {
             if (categoryDetails.getDescription() != null) category.setDescription(categoryDetails.getDescription());
             if (categoryDetails.getImageUrl() != null) category.setImageUrl(categoryDetails.getImageUrl());
             if (categoryDetails.getDiscount() != null) category.setDiscount(categoryDetails.getDiscount());
+            if (categoryDetails.getDisplayOrder() != null) category.setDisplayOrder(categoryDetails.getDisplayOrder());
             if (categoryDetails.getActive() != null) category.setActive(categoryDetails.getActive());
             Category updated = categoryRepository.save(category);
             return ResponseEntity.ok(updated);
@@ -136,6 +142,9 @@ public class CategoryController {
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "description", required = false) String description,
             @RequestParam(value = "discount", required = false) Double discount,
+            @RequestParam(value = "displayOrder", required = false) Integer displayOrder,
+            @RequestParam(value = "order", required = false) Integer order,
+            @RequestParam(value = "sortOrder", required = false) Integer sortOrder,
             @RequestParam(value = "active", required = false) Boolean active,
             @RequestParam(value = "imageUrl", required = false) String imageUrl,
             @RequestParam(value = "category", required = false) String categoryJson,
@@ -157,6 +166,7 @@ public class CategoryController {
                     if (parsed.getName() != null) category.setName(parsed.getName());
                     if (parsed.getDescription() != null) category.setDescription(parsed.getDescription());
                     if (parsed.getDiscount() != null) category.setDiscount(parsed.getDiscount());
+                    if (parsed.getDisplayOrder() != null) category.setDisplayOrder(parsed.getDisplayOrder());
                     if (parsed.getActive() != null) category.setActive(parsed.getActive());
                     if (parsed.getImageUrl() != null) category.setImageUrl(parsed.getImageUrl());
                 } catch (Exception e) {
@@ -167,6 +177,8 @@ public class CategoryController {
             if (StringUtils.hasText(name)) category.setName(name);
             if (description != null) category.setDescription(description);
             if (discount != null) category.setDiscount(discount);
+            Integer targetOrder = getFirstNonNull(displayOrder, order, sortOrder);
+            if (targetOrder != null) category.setDisplayOrder(targetOrder);
             if (active != null) category.setActive(active);
             if (StringUtils.hasText(imageUrl)) category.setImageUrl(imageUrl);
 
@@ -262,6 +274,15 @@ public class CategoryController {
         for (MultipartFile f : files) {
             if (f != null && !f.isEmpty()) {
                 return f;
+            }
+        }
+        return null;
+    }
+
+    private Integer getFirstNonNull(Integer... values) {
+        for (Integer v : values) {
+            if (v != null) {
+                return v;
             }
         }
         return null;

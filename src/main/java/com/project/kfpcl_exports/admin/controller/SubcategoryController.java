@@ -67,6 +67,9 @@ public class SubcategoryController {
             @RequestParam(value = "description", required = false) String description,
             @RequestParam(value = "categoryId", required = false) Long categoryId,
             @RequestParam(value = "categoryName", required = false) String categoryName,
+            @RequestParam(value = "displayOrder", required = false) Integer displayOrder,
+            @RequestParam(value = "order", required = false) Integer order,
+            @RequestParam(value = "sortOrder", required = false) Integer sortOrder,
             @RequestParam(value = "active", required = false) Boolean active,
             @RequestParam(value = "imageUrl", required = false) String imageUrl,
             @RequestParam(value = "subcategory", required = false) String subcategoryJson,
@@ -90,6 +93,8 @@ public class SubcategoryController {
             if (description != null) subcategory.setDescription(description);
             if (categoryId != null) subcategory.setCategoryId(categoryId);
             if (categoryName != null) subcategory.setCategoryName(categoryName);
+            Integer targetOrder = getFirstNonNull(displayOrder, order, sortOrder);
+            if (targetOrder != null) subcategory.setDisplayOrder(targetOrder);
             if (active != null) subcategory.setActive(active);
             if (StringUtils.hasText(imageUrl)) subcategory.setImageUrl(imageUrl);
 
@@ -132,6 +137,7 @@ public class SubcategoryController {
             if (subcategoryDetails.getDescription() != null) sub.setDescription(subcategoryDetails.getDescription());
             if (subcategoryDetails.getCategoryId() != null) sub.setCategoryId(subcategoryDetails.getCategoryId());
             if (subcategoryDetails.getCategoryName() != null) sub.setCategoryName(subcategoryDetails.getCategoryName());
+            if (subcategoryDetails.getDisplayOrder() != null) sub.setDisplayOrder(subcategoryDetails.getDisplayOrder());
             if (subcategoryDetails.getImageUrl() != null) sub.setImageUrl(subcategoryDetails.getImageUrl());
             if (subcategoryDetails.getActive() != null) sub.setActive(subcategoryDetails.getActive());
             Subcategory updated = subcategoryRepository.save(sub);
@@ -150,6 +156,9 @@ public class SubcategoryController {
             @RequestParam(value = "description", required = false) String description,
             @RequestParam(value = "categoryId", required = false) Long categoryId,
             @RequestParam(value = "categoryName", required = false) String categoryName,
+            @RequestParam(value = "displayOrder", required = false) Integer displayOrder,
+            @RequestParam(value = "order", required = false) Integer order,
+            @RequestParam(value = "sortOrder", required = false) Integer sortOrder,
             @RequestParam(value = "active", required = false) Boolean active,
             @RequestParam(value = "imageUrl", required = false) String imageUrl,
             @RequestParam(value = "subcategory", required = false) String subcategoryJson,
@@ -172,6 +181,7 @@ public class SubcategoryController {
                     if (parsed.getDescription() != null) sub.setDescription(parsed.getDescription());
                     if (parsed.getCategoryId() != null) sub.setCategoryId(parsed.getCategoryId());
                     if (parsed.getCategoryName() != null) sub.setCategoryName(parsed.getCategoryName());
+                    if (parsed.getDisplayOrder() != null) sub.setDisplayOrder(parsed.getDisplayOrder());
                     if (parsed.getActive() != null) sub.setActive(parsed.getActive());
                     if (parsed.getImageUrl() != null) sub.setImageUrl(parsed.getImageUrl());
                 } catch (Exception e) {
@@ -183,6 +193,8 @@ public class SubcategoryController {
             if (description != null) sub.setDescription(description);
             if (categoryId != null) sub.setCategoryId(categoryId);
             if (categoryName != null) sub.setCategoryName(categoryName);
+            Integer targetOrder = getFirstNonNull(displayOrder, order, sortOrder);
+            if (targetOrder != null) sub.setDisplayOrder(targetOrder);
             if (active != null) sub.setActive(active);
             if (StringUtils.hasText(imageUrl)) sub.setImageUrl(imageUrl);
 
@@ -268,6 +280,15 @@ public class SubcategoryController {
         for (MultipartFile f : files) {
             if (f != null && !f.isEmpty()) {
                 return f;
+            }
+        }
+        return null;
+    }
+
+    private Integer getFirstNonNull(Integer... values) {
+        for (Integer v : values) {
+            if (v != null) {
+                return v;
             }
         }
         return null;

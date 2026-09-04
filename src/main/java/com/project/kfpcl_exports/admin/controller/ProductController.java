@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController("adminProductController")
-@RequestMapping({"/api/products", "/api/admin/products"})
+@RequestMapping({ "/api/products", "/api/admin/products" })
 @RequiredArgsConstructor
 public class ProductController {
 
@@ -72,9 +72,10 @@ public class ProductController {
     }
 
     /**
-     * Create Product via multipart/form-data or form-urlencoded with direct image file upload.
+     * Create Product via multipart/form-data or form-urlencoded with direct image
+     * file upload.
      */
-    @PostMapping(consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE})
+    @PostMapping(consumes = { MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE })
     public ResponseEntity<?> createProductMultipart(
             @RequestParam(value = "title", required = false) String title,
             @RequestParam(value = "name", required = false) String name,
@@ -97,8 +98,7 @@ public class ProductController {
             @RequestParam(value = "mainImage", required = false) MultipartFile mainImage,
             @RequestParam(value = "productImage", required = false) MultipartFile productImage,
             @RequestParam(value = "images", required = false) List<MultipartFile> imagesList,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
         try {
             Product product = new Product();
 
@@ -111,21 +111,34 @@ public class ProductController {
             }
 
             String finalTitle = StringUtils.hasText(title) ? title : name;
-            if (StringUtils.hasText(finalTitle)) product.setTitle(finalTitle);
-            if (description != null) product.setDescription(description);
-            if (price != null) product.setPrice(price);
-            if (originalPrice != null) product.setOriginalPrice(originalPrice);
-            if (stock != null) product.setStock(stock);
-            if (unit != null) product.setUnit(unit);
-            if (categoryId != null) product.setCategoryId(categoryId);
-            if (categoryName != null) product.setCategoryName(categoryName);
-            if (subcategoryId != null) product.setSubcategoryId(subcategoryId);
-            if (subcategoryName != null) product.setSubcategoryName(subcategoryName);
-            if (trending != null) product.setTrending(trending);
-            if (active != null) product.setActive(active);
+            if (StringUtils.hasText(finalTitle))
+                product.setTitle(finalTitle);
+            if (description != null)
+                product.setDescription(description);
+            if (price != null)
+                product.setPrice(price);
+            if (originalPrice != null)
+                product.setOriginalPrice(originalPrice);
+            if (stock != null)
+                product.setStock(stock);
+            if (unit != null)
+                product.setUnit(unit);
+            if (categoryId != null)
+                product.setCategoryId(categoryId);
+            if (categoryName != null)
+                product.setCategoryName(categoryName);
+            if (subcategoryId != null)
+                product.setSubcategoryId(subcategoryId);
+            if (subcategoryName != null)
+                product.setSubcategoryName(subcategoryName);
+            if (trending != null)
+                product.setTrending(trending);
+            if (active != null)
+                product.setActive(active);
 
             String textUrl = StringUtils.hasText(mainImageUrl) ? mainImageUrl : imageUrl;
-            if (StringUtils.hasText(textUrl)) product.setMainImageUrl(textUrl);
+            if (StringUtils.hasText(textUrl))
+                product.setMainImageUrl(textUrl);
 
             // Check for uploaded main image file
             MultipartFile mainFile = getFirstNonEmpty(file, image, mainImage, productImage);
@@ -142,8 +155,7 @@ public class ProductController {
             if (!StringUtils.hasText(product.getTitle())) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "error", "Product title is required",
-                        "success", false
-                ));
+                        "success", false));
             }
 
             // If mainImageUrl is set, ensure primary ProductImage exists
@@ -195,19 +207,32 @@ public class ProductController {
         Optional<Product> pOpt = productRepository.findById(id);
         if (pOpt.isPresent()) {
             Product product = pOpt.get();
-            if (productDetails.getTitle() != null) product.setTitle(productDetails.getTitle());
-            if (productDetails.getDescription() != null) product.setDescription(productDetails.getDescription());
-            if (productDetails.getPrice() != null) product.setPrice(productDetails.getPrice());
-            if (productDetails.getOriginalPrice() != null) product.setOriginalPrice(productDetails.getOriginalPrice());
-            if (productDetails.getStock() != null) product.setStock(productDetails.getStock());
-            if (productDetails.getUnit() != null) product.setUnit(productDetails.getUnit());
-            if (productDetails.getCategoryId() != null) product.setCategoryId(productDetails.getCategoryId());
-            if (productDetails.getCategoryName() != null) product.setCategoryName(productDetails.getCategoryName());
-            if (productDetails.getSubcategoryId() != null) product.setSubcategoryId(productDetails.getSubcategoryId());
-            if (productDetails.getSubcategoryName() != null) product.setSubcategoryName(productDetails.getSubcategoryName());
-            if (productDetails.getMainImageUrl() != null) product.setMainImageUrl(productDetails.getMainImageUrl());
-            if (productDetails.getTrending() != null) product.setTrending(productDetails.getTrending());
-            if (productDetails.getActive() != null) product.setActive(productDetails.getActive());
+            if (productDetails.getTitle() != null)
+                product.setTitle(productDetails.getTitle());
+            if (productDetails.getDescription() != null)
+                product.setDescription(productDetails.getDescription());
+            if (productDetails.getPrice() != null)
+                product.setPrice(productDetails.getPrice());
+            if (productDetails.getOriginalPrice() != null)
+                product.setOriginalPrice(productDetails.getOriginalPrice());
+            if (productDetails.getStock() != null)
+                product.setStock(productDetails.getStock());
+            if (productDetails.getUnit() != null)
+                product.setUnit(productDetails.getUnit());
+            if (productDetails.getCategoryId() != null)
+                product.setCategoryId(productDetails.getCategoryId());
+            if (productDetails.getCategoryName() != null)
+                product.setCategoryName(productDetails.getCategoryName());
+            if (productDetails.getSubcategoryId() != null)
+                product.setSubcategoryId(productDetails.getSubcategoryId());
+            if (productDetails.getSubcategoryName() != null)
+                product.setSubcategoryName(productDetails.getSubcategoryName());
+            if (productDetails.getMainImageUrl() != null)
+                product.setMainImageUrl(productDetails.getMainImageUrl());
+            if (productDetails.getTrending() != null)
+                product.setTrending(productDetails.getTrending());
+            if (productDetails.getActive() != null)
+                product.setActive(productDetails.getActive());
 
             populateCategoryNames(product);
             Product updated = productRepository.save(product);
@@ -219,7 +244,8 @@ public class ProductController {
     /**
      * Update Product via multipart/form-data or form-urlencoded.
      */
-    @RequestMapping(value = "/{id}", method = {RequestMethod.PUT, RequestMethod.POST}, consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE})
+    @RequestMapping(value = "/{id}", method = { RequestMethod.PUT, RequestMethod.POST }, consumes = {
+            MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE })
     public ResponseEntity<?> updateProductMultipart(
             @PathVariable Long id,
             @RequestParam(value = "title", required = false) String title,
@@ -242,8 +268,7 @@ public class ProductController {
             @RequestParam(value = "image", required = false) MultipartFile image,
             @RequestParam(value = "mainImage", required = false) MultipartFile mainImage,
             @RequestParam(value = "productImage", required = false) MultipartFile productImage,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
         Optional<Product> pOpt = productRepository.findById(id);
         if (pOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -254,40 +279,66 @@ public class ProductController {
             if (StringUtils.hasText(productJson)) {
                 try {
                     Product parsed = objectMapper.readValue(productJson, Product.class);
-                    if (parsed.getTitle() != null) product.setTitle(parsed.getTitle());
-                    if (parsed.getDescription() != null) product.setDescription(parsed.getDescription());
-                    if (parsed.getPrice() != null) product.setPrice(parsed.getPrice());
-                    if (parsed.getOriginalPrice() != null) product.setOriginalPrice(parsed.getOriginalPrice());
-                    if (parsed.getStock() != null) product.setStock(parsed.getStock());
-                    if (parsed.getUnit() != null) product.setUnit(parsed.getUnit());
-                    if (parsed.getCategoryId() != null) product.setCategoryId(parsed.getCategoryId());
-                    if (parsed.getCategoryName() != null) product.setCategoryName(parsed.getCategoryName());
-                    if (parsed.getSubcategoryId() != null) product.setSubcategoryId(parsed.getSubcategoryId());
-                    if (parsed.getSubcategoryName() != null) product.setSubcategoryName(parsed.getSubcategoryName());
-                    if (parsed.getMainImageUrl() != null) product.setMainImageUrl(parsed.getMainImageUrl());
-                    if (parsed.getTrending() != null) product.setTrending(parsed.getTrending());
-                    if (parsed.getActive() != null) product.setActive(parsed.getActive());
+                    if (parsed.getTitle() != null)
+                        product.setTitle(parsed.getTitle());
+                    if (parsed.getDescription() != null)
+                        product.setDescription(parsed.getDescription());
+                    if (parsed.getPrice() != null)
+                        product.setPrice(parsed.getPrice());
+                    if (parsed.getOriginalPrice() != null)
+                        product.setOriginalPrice(parsed.getOriginalPrice());
+                    if (parsed.getStock() != null)
+                        product.setStock(parsed.getStock());
+                    if (parsed.getUnit() != null)
+                        product.setUnit(parsed.getUnit());
+                    if (parsed.getCategoryId() != null)
+                        product.setCategoryId(parsed.getCategoryId());
+                    if (parsed.getCategoryName() != null)
+                        product.setCategoryName(parsed.getCategoryName());
+                    if (parsed.getSubcategoryId() != null)
+                        product.setSubcategoryId(parsed.getSubcategoryId());
+                    if (parsed.getSubcategoryName() != null)
+                        product.setSubcategoryName(parsed.getSubcategoryName());
+                    if (parsed.getMainImageUrl() != null)
+                        product.setMainImageUrl(parsed.getMainImageUrl());
+                    if (parsed.getTrending() != null)
+                        product.setTrending(parsed.getTrending());
+                    if (parsed.getActive() != null)
+                        product.setActive(parsed.getActive());
                 } catch (Exception e) {
                     log.warn("Could not parse product JSON parameter: {}", e.getMessage());
                 }
             }
 
             String finalTitle = StringUtils.hasText(title) ? title : name;
-            if (StringUtils.hasText(finalTitle)) product.setTitle(finalTitle);
-            if (description != null) product.setDescription(description);
-            if (price != null) product.setPrice(price);
-            if (originalPrice != null) product.setOriginalPrice(originalPrice);
-            if (stock != null) product.setStock(stock);
-            if (unit != null) product.setUnit(unit);
-            if (categoryId != null) product.setCategoryId(categoryId);
-            if (categoryName != null) product.setCategoryName(categoryName);
-            if (subcategoryId != null) product.setSubcategoryId(subcategoryId);
-            if (subcategoryName != null) product.setSubcategoryName(subcategoryName);
-            if (trending != null) product.setTrending(trending);
-            if (active != null) product.setActive(active);
+            if (StringUtils.hasText(finalTitle))
+                product.setTitle(finalTitle);
+            if (description != null)
+                product.setDescription(description);
+            if (price != null)
+                product.setPrice(price);
+            if (originalPrice != null)
+                product.setOriginalPrice(originalPrice);
+            if (stock != null)
+                product.setStock(stock);
+            if (unit != null)
+                product.setUnit(unit);
+            if (categoryId != null)
+                product.setCategoryId(categoryId);
+            if (categoryName != null)
+                product.setCategoryName(categoryName);
+            if (subcategoryId != null)
+                product.setSubcategoryId(subcategoryId);
+            if (subcategoryName != null)
+                product.setSubcategoryName(subcategoryName);
+            if (trending != null)
+                product.setTrending(trending);
+            if (active != null)
+                product.setActive(active);
 
             String textUrl = StringUtils.hasText(mainImageUrl) ? mainImageUrl : imageUrl;
-            if (StringUtils.hasText(textUrl)) product.setMainImageUrl(textUrl);
+            if (StringUtils.hasText(textUrl))
+                product.setMainImageUrl(textUrl);
 
             MultipartFile mainFile = getFirstNonEmpty(file, image, mainImage, productImage);
             if (mainFile != null && !mainFile.isEmpty()) {
@@ -330,14 +381,14 @@ public class ProductController {
     /**
      * Upload / Update Product Image directly.
      */
-    @PostMapping(value = {"/{id}/image", "/{id}/upload", "/{id}/upload-image"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = { "/{id}/image", "/{id}/upload",
+            "/{id}/upload-image" }, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadProductImageDirectly(
             @PathVariable Long id,
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam(value = "image", required = false) MultipartFile image,
             @RequestParam(value = "mainImage", required = false) MultipartFile mainImage,
-            @RequestParam(value = "productImage", required = false) MultipartFile productImage
-    ) {
+            @RequestParam(value = "productImage", required = false) MultipartFile productImage) {
         Optional<Product> pOpt = productRepository.findById(id);
         if (pOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -377,8 +428,7 @@ public class ProductController {
                     "mainImageUrl", res.getUrl(),
                     "key", res.getKey(),
                     "presignedUrl", res.getPresignedUrl(),
-                    "success", true
-            ));
+                    "success", true));
         } catch (Exception e) {
             log.error("Failed to upload product image: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage(), "success", false));
@@ -414,7 +464,8 @@ public class ProductController {
 
     // Product Images Endpoints (JSON)
     @PostMapping(value = "/{productId}/images", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ProductImage> addProductImageJson(@PathVariable Long productId, @RequestBody Map<String, Object> payload) {
+    public ResponseEntity<ProductImage> addProductImageJson(@PathVariable Long productId,
+            @RequestBody Map<String, Object> payload) {
         Optional<Product> pOpt = productRepository.findById(productId);
         if (pOpt.isPresent()) {
             Product product = pOpt.get();
@@ -439,7 +490,8 @@ public class ProductController {
     }
 
     // Product Images Endpoints (Multipart upload)
-    @PostMapping(value = "/{productId}/images", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE})
+    @PostMapping(value = "/{productId}/images", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE,
+            MediaType.APPLICATION_FORM_URLENCODED_VALUE })
     public ResponseEntity<?> addProductImageMultipart(
             @PathVariable Long productId,
             @RequestParam(value = "imageUrl", required = false) String imageUrl,
@@ -447,8 +499,7 @@ public class ProductController {
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam(value = "image", required = false) MultipartFile image,
             @RequestParam(value = "productImage", required = false) MultipartFile productImage,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
         Optional<Product> pOpt = productRepository.findById(productId);
         if (pOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -468,7 +519,8 @@ public class ProductController {
             }
 
             if (!StringUtils.hasText(finalImageUrl)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "No image file or URL provided", "success", false));
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "No image file or URL provided", "success", false));
             }
 
             ProductImage img = ProductImage.builder()
@@ -478,7 +530,8 @@ public class ProductController {
                     .build();
             ProductImage saved = productImageRepository.save(img);
 
-            if (Boolean.TRUE.equals(isPrimary) || product.getMainImageUrl() == null || product.getMainImageUrl().isEmpty()) {
+            if (Boolean.TRUE.equals(isPrimary) || product.getMainImageUrl() == null
+                    || product.getMainImageUrl().isEmpty()) {
                 product.setMainImageUrl(finalImageUrl);
                 productRepository.save(product);
             }
@@ -491,13 +544,17 @@ public class ProductController {
     }
 
     @PutMapping("/images/{imageId}")
-    public ResponseEntity<ProductImage> updateProductImage(@PathVariable Long imageId, @RequestBody Map<String, Object> payload) {
+    public ResponseEntity<ProductImage> updateProductImage(@PathVariable Long imageId,
+            @RequestBody Map<String, Object> payload) {
         Optional<ProductImage> imgOpt = productImageRepository.findById(imageId);
         if (imgOpt.isPresent()) {
             ProductImage img = imgOpt.get();
-            if (payload.containsKey("imageUrl")) img.setImageUrl((String) payload.get("imageUrl"));
-            if (payload.containsKey("image")) img.setImageUrl((String) payload.get("image"));
-            if (payload.containsKey("isPrimary")) img.setIsPrimary((Boolean) payload.get("isPrimary"));
+            if (payload.containsKey("imageUrl"))
+                img.setImageUrl((String) payload.get("imageUrl"));
+            if (payload.containsKey("image"))
+                img.setImageUrl((String) payload.get("image"));
+            if (payload.containsKey("isPrimary"))
+                img.setIsPrimary((Boolean) payload.get("isPrimary"));
             ProductImage saved = productImageRepository.save(img);
             return ResponseEntity.ok(saved);
         }
