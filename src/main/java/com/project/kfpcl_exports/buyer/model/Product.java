@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity(name = "BuyerProduct")
-@Table(name = "buyer_products")
+@Table(name = "products")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Getter
 @Setter
@@ -24,7 +24,8 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 150)
+    @Column(name = "title")
+    @com.fasterxml.jackson.annotation.JsonAlias({"title", "name", "productName"})
     private String name;
 
     @Column(columnDefinition = "TEXT")
@@ -90,6 +91,22 @@ public class Product {
         } else if (mainImageUrl == null && imageUrl != null) {
             mainImageUrl = imageUrl;
         }
+    }
+
+    public String getTitle() {
+        return name;
+    }
+
+    public void setTitle(String title) {
+        this.name = title;
+    }
+
+    public Boolean getActive() {
+        return isActive;
+    }
+
+    public void setActive(Boolean active) {
+        this.isActive = active;
     }
 
     public String getImageUrl() {
