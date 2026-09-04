@@ -5,8 +5,7 @@ import com.project.kfpcl_exports.buyer.enums.NotificationType;
 import com.project.kfpcl_exports.buyer.enums.RfqStatus;
 import com.project.kfpcl_exports.buyer.exception.RfqException;
 import com.project.kfpcl_exports.buyer.model.*;
-import com.project.kfpcl_exports.admin.model.Product;
-import com.project.kfpcl_exports.admin.repository.ProductRepository;
+import com.project.kfpcl_exports.buyer.repository.ProductRepository;
 import com.project.kfpcl_exports.buyer.repository.RfqRepository;
 import com.project.kfpcl_exports.buyer.repository.RfqResponseRepository;
 import com.project.kfpcl_exports.buyer.util.RfqCodeGenerator;
@@ -23,20 +22,23 @@ public class RfqService {
 
     private final RfqRepository rfqRepository;
     private final RfqResponseRepository rfqResponseRepository;
-    private final ProductRepository productRepository;
+    private final ProductRepository buyerProductRepository;
+    private final com.project.kfpcl_exports.admin.repository.ProductRepository adminProductRepository;
     private final RfqCodeGenerator rfqCodeGenerator;
     private final NotificationService notificationService;
 
     public RfqService(
             RfqRepository rfqRepository,
             RfqResponseRepository rfqResponseRepository,
-            ProductRepository productRepository,
+            ProductRepository buyerProductRepository,
+            com.project.kfpcl_exports.admin.repository.ProductRepository adminProductRepository,
             RfqCodeGenerator rfqCodeGenerator,
             NotificationService notificationService
     ) {
         this.rfqRepository = rfqRepository;
         this.rfqResponseRepository = rfqResponseRepository;
-        this.productRepository = productRepository;
+        this.buyerProductRepository = buyerProductRepository;
+        this.adminProductRepository = adminProductRepository;
         this.rfqCodeGenerator = rfqCodeGenerator;
         this.notificationService = notificationService;
     }
@@ -49,29 +51,52 @@ public class RfqService {
      * 1. Create a new RFQ for the authenticated buyer.
      */
     public BuyerRfqResponseDto createRfq(User buyer, BuyerCreateRfqRequest request) {
-        Product product = null;
+        com.project.kfpcl_exports.buyer.model.Product buyerProduct = null;
+
         if (request.getProductId() != null) {
-            product = productRepository.findById(request.getProductId()).orElse(null);
+            buyerProduct = buyerProductRepository.findById(request.getProductId()).orElse(null);
         }
 
-        if (product == null) {
-            // Safe Fallback: If requested productId is not found in database, pick any active product
-            product = productRepository.findAll().stream()
-                    .filter(p -> Boolean.TRUE.equals(p.getActive()))
+        // If product with requested ID does not exist in buyer_products, sync from admin products
+        if (buyerProduct == null && request.getProductId() != null) {
+            com.project.kfpcl_exports.admin.model.Product adminProd = adminProductRepository.findById(request.getProductId()).orElse(null);
+            if (adminProd != null) {
+                com.project.kfpcl_exports.buyer.model.Product synced = com.project.kfpcl_exports.buyer.model.Product.builder()
+                        .id(adminProd.getId())
+                        .name(adminProd.getTitle() != null ? adminProd.getTitle() : "Commodity")
+                        .description(adminProd.getDescription())
+                        .mainImageUrl(adminProd.getMainImageUrl())
+                        .imageUrl(adminProd.getMainImageUrl())
+                        .isActive(Boolean.TRUE.equals(adminProd.getActive()))
+                        .createdAt(LocalDateTime.now())
+                        .build();
+                try {
+                    buyerProduct = buyerProductRepository.save(synced);
+                } catch (Exception e) {
+                    synced.setId(null);
+                    buyerProduct = buyerProductRepository.save(synced);
+                }
+            }
+        }
+
+        // Safe Fallback 1: Pick any active product in buyer_products table
+        if (buyerProduct == null) {
+            buyerProduct = buyerProductRepository.findAll().stream()
+                    .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
                     .findFirst()
-                    .orElseGet(() -> productRepository.findAll().stream().findFirst().orElse(null));
+                    .orElseGet(() -> buyerProductRepository.findAll().stream().findFirst().orElse(null));
         }
 
-        if (product == null) {
-            // Auto-create a default product placeholder if database has no products
+        // Safe Fallback 2: Auto-create a default product entry in buyer_products table to satisfy FK constraint
+        if (buyerProduct == null) {
             LocalDateTime now = LocalDateTime.now();
-            Product fallback = Product.builder()
-                    .title("General Commodity Product")
+            com.project.kfpcl_exports.buyer.model.Product fallback = com.project.kfpcl_exports.buyer.model.Product.builder()
+                    .name("General Commodity Product")
                     .description("Default product created for RFQ requests")
-                    .active(true)
+                    .isActive(true)
                     .createdAt(now)
                     .build();
-            product = productRepository.save(fallback);
+            buyerProduct = buyerProductRepository.save(fallback);
         }
 
         String rfqCode = rfqCodeGenerator.generateRfqCode();
@@ -80,7 +105,7 @@ public class RfqService {
         Rfq rfq = Rfq.builder()
                 .rfqCode(rfqCode)
                 .buyer(buyer)
-                .product(product)
+                .product(buyerProduct)
                 .quantity(request.getQuantity() != null ? request.getQuantity() : "1")
                 .deliveryLocation(request.getDeliveryLocation() != null ? request.getDeliveryLocation() : "Default Location")
                 .buyerMessage(request.getBuyerMessage())
@@ -322,9 +347,9 @@ public class RfqService {
         if (rfq.getProduct() != null) {
             productDto = BuyerRfqResponseDto.ProductSummaryDto.builder()
                     .id(rfq.getProduct().getId())
-                    .name(rfq.getProduct().getTitle())
+                    .name(rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle())
                     .description(rfq.getProduct().getDescription())
-                    .imageUrl(rfq.getProduct().getMainImageUrl())
+                    .imageUrl(rfq.getProduct().getImageUrl())
                     .build();
         }
 
