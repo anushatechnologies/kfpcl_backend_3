@@ -3,8 +3,10 @@ package com.project.kfpcl_exports.admin.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.kfpcl_exports.admin.model.Product;
 import com.project.kfpcl_exports.admin.model.ProductImage;
+import com.project.kfpcl_exports.admin.repository.CategoryRepository;
 import com.project.kfpcl_exports.admin.repository.ProductImageRepository;
 import com.project.kfpcl_exports.admin.repository.ProductRepository;
+import com.project.kfpcl_exports.admin.repository.SubcategoryRepository;
 import com.project.kfpcl_exports.dto.FileUploadResponse;
 import com.project.kfpcl_exports.service.S3Service;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,6 +34,8 @@ public class ProductController {
 
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
+    private final CategoryRepository categoryRepository;
+    private final SubcategoryRepository subcategoryRepository;
     private final S3Service s3Service;
     private final ObjectMapper objectMapper;
 
@@ -62,6 +66,7 @@ public class ProductController {
                 product.getImages().add(primaryImg);
             }
         }
+        populateCategoryNames(product);
         Product saved = productRepository.save(product);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
@@ -173,6 +178,7 @@ public class ProductController {
                 }
             }
 
+            populateCategoryNames(product);
             Product saved = productRepository.save(product);
             return ResponseEntity.status(HttpStatus.CREATED).body(saved);
         } catch (Exception e) {
@@ -203,6 +209,7 @@ public class ProductController {
             if (productDetails.getTrending() != null) product.setTrending(productDetails.getTrending());
             if (productDetails.getActive() != null) product.setActive(productDetails.getActive());
 
+            populateCategoryNames(product);
             Product updated = productRepository.save(product);
             return ResponseEntity.ok(updated);
         }
@@ -311,6 +318,7 @@ public class ProductController {
                 }
             }
 
+            populateCategoryNames(product);
             Product updated = productRepository.save(product);
             return ResponseEntity.ok(updated);
         } catch (Exception e) {
@@ -512,5 +520,16 @@ public class ProductController {
             }
         }
         return null;
+    }
+
+    private void populateCategoryNames(Product product) {
+        if (product.getCategoryId() != null && !StringUtils.hasText(product.getCategoryName())) {
+            categoryRepository.findById(product.getCategoryId())
+                    .ifPresent(category -> product.setCategoryName(category.getName()));
+        }
+        if (product.getSubcategoryId() != null && !StringUtils.hasText(product.getSubcategoryName())) {
+            subcategoryRepository.findById(product.getSubcategoryId())
+                    .ifPresent(subcategory -> product.setSubcategoryName(subcategory.getName()));
+        }
     }
 }

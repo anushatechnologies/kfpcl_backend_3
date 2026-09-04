@@ -5,7 +5,8 @@ import com.project.kfpcl_exports.buyer.enums.NotificationType;
 import com.project.kfpcl_exports.buyer.enums.RfqStatus;
 import com.project.kfpcl_exports.buyer.exception.RfqException;
 import com.project.kfpcl_exports.buyer.model.*;
-import com.project.kfpcl_exports.buyer.repository.ProductRepository;
+import com.project.kfpcl_exports.admin.model.Product;
+import com.project.kfpcl_exports.admin.repository.ProductRepository;
 import com.project.kfpcl_exports.buyer.repository.RfqRepository;
 import com.project.kfpcl_exports.buyer.repository.RfqResponseRepository;
 import com.project.kfpcl_exports.buyer.util.RfqCodeGenerator;
@@ -51,7 +52,7 @@ public class RfqService {
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> RfqException.productNotFound("Product not found with id: " + request.getProductId()));
 
-        if (Boolean.FALSE.equals(product.getIsActive())) {
+        if (Boolean.FALSE.equals(product.getActive())) {
             throw RfqException.invalidRequest("Product is currently not active");
         }
 
@@ -303,9 +304,9 @@ public class RfqService {
         if (rfq.getProduct() != null) {
             productDto = BuyerRfqResponseDto.ProductSummaryDto.builder()
                     .id(rfq.getProduct().getId())
-                    .name(rfq.getProduct().getName())
+                    .name(rfq.getProduct().getTitle())
                     .description(rfq.getProduct().getDescription())
-                    .imageUrl(rfq.getProduct().getImageUrl())
+                    .imageUrl(rfq.getProduct().getMainImageUrl())
                     .build();
         }
 

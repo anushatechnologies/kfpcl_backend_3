@@ -1,6 +1,7 @@
 package com.project.kfpcl_exports.buyer.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.project.kfpcl_exports.admin.model.Product;
 import com.project.kfpcl_exports.buyer.enums.RfqStatus;
 import jakarta.persistence.*;
 import lombok.*;
