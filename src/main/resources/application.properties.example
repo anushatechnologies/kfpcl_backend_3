@@ -18,3 +18,10 @@ spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
 # File upload properties
 spring.servlet.multipart.max-file-size=10MB
 spring.servlet.multipart.max-request-size=10MB
+
+# -------------------------------------------------------
+# AWS S3 CONFIGURATION
+# -------------------------------------------------------
+aws.region=${AWS_REGION:ap-south-2}
+aws.s3.bucket=${AWS_S3_BUCKET:kfpcl-exports-media-319759856065}
+
