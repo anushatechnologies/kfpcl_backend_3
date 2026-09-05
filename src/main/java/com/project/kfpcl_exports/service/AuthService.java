@@ -10,8 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+
 @Service
-@RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
@@ -20,6 +21,22 @@ public class AuthService {
     private final TokenService tokenService;
     private final UserService userService;
     private final FcmTokenService fcmTokenService;
+
+    public AuthService(
+            @Qualifier("mainUserRepository") UserRepository userRepository,
+            FcmTokenRepository fcmTokenRepository,
+            OtpService otpService,
+            TokenService tokenService,
+            UserService userService,
+            FcmTokenService fcmTokenService
+    ) {
+        this.userRepository = userRepository;
+        this.fcmTokenRepository = fcmTokenRepository;
+        this.otpService = otpService;
+        this.tokenService = tokenService;
+        this.userService = userService;
+        this.fcmTokenService = fcmTokenService;
+    }
 
     public CheckPhoneResponse checkPhone(String phoneNumber) {
         boolean exists = userRepository.existsByPhoneNumberAndIsActiveTrue(phoneNumber);

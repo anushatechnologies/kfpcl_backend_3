@@ -14,12 +14,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+
 @Service
-@RequiredArgsConstructor
 public class FcmTokenService {
 
     private final FcmTokenRepository fcmTokenRepository;
     private final UserRepository userRepository;
+
+    public FcmTokenService(FcmTokenRepository fcmTokenRepository, @Qualifier("mainUserRepository") UserRepository userRepository) {
+        this.fcmTokenRepository = fcmTokenRepository;
+        this.userRepository = userRepository;
+    }
 
     @Transactional
     public void saveOrUpdateFcmToken(Long userId, FcmTokenRequest request) {

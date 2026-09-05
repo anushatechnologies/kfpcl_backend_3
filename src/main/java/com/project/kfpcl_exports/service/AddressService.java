@@ -13,12 +13,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+
 @Service
-@RequiredArgsConstructor
 public class AddressService {
 
     private final AddressRepository addressRepository;
     private final UserRepository userRepository;
+
+    public AddressService(AddressRepository addressRepository, @Qualifier("mainUserRepository") UserRepository userRepository) {
+        this.addressRepository = addressRepository;
+        this.userRepository = userRepository;
+    }
 
     @Transactional(readOnly = true)
     public List<AddressResponse> getAddressesForUser(Long userId) {
