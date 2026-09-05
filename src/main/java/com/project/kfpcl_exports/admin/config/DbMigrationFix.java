@@ -24,6 +24,29 @@ public class DbMigrationFix implements CommandLineRunner {
 
         // 3. Dynamically find and drop any foreign key on buyer_rfqs referencing admin_products
         dropForeignKeysReferencingTable("buyer_rfqs", "admin_products");
+
+        // 4. Ensure AUTO_INCREMENT on id column for tables with IDENTITY generation strategy
+        ensureAutoIncrement("products", "id");
+        ensureAutoIncrement("admin_categories", "id");
+        ensureAutoIncrement("admin_subcategories", "id");
+        ensureAutoIncrement("product_images", "id");
+        ensureAutoIncrement("banners", "id");
+        ensureAutoIncrement("stores", "id");
+        ensureAutoIncrement("buyer_rfqs", "id");
+        ensureAutoIncrement("rfq_responses", "id");
+        ensureAutoIncrement("wishlists", "id");
+        ensureAutoIncrement("notifications", "id");
+        ensureAutoIncrement("contact_leads", "id");
+        ensureAutoIncrement("policies", "id");
+    }
+
+    private void ensureAutoIncrement(String tableName, String columnName) {
+        try {
+            jdbcTemplate.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnName + " BIGINT NOT NULL AUTO_INCREMENT");
+            log.info("Successfully set AUTO_INCREMENT on {}.{}", tableName, columnName);
+        } catch (Exception e) {
+            log.debug("Could not set AUTO_INCREMENT on {}.{}: {}", tableName, columnName, e.getMessage());
+        }
     }
 
     private void dropForeignKeyIfExists(String tableName, String constraintName) {
