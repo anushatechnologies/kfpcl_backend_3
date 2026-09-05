@@ -8,5 +8,5 @@ import java.util.List;
 
 @Repository
 public interface ContactLeadRepository extends JpaRepository<ContactLead, Long> {
-    List<ContactLead> findByBuyerId(Long buyerId);
+    List<ContactLead> findByBuyerId(String buyerId);
 }

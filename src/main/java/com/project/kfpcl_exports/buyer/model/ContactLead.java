@@ -37,7 +37,7 @@ public class ContactLead {
 
     public ContactLead() {}
 
-    public ContactLead(Long buyerId, Product product, Supplier supplier, String contactType) {
+    public ContactLead(String buyerId, Product product, Supplier supplier, String contactType) {
         this.buyerId = buyerId;
         this.product = product;
         this.supplier = supplier;

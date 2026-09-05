@@ -36,7 +36,7 @@ public class ProductRating {
 
     public ProductRating() {}
 
-    public ProductRating(Long buyerId, Product product, Integer rating, String review) {
+    public ProductRating(String buyerId, Product product, Integer rating, String review) {
         this.buyerId = buyerId;
         this.product = product;
         this.rating = rating;

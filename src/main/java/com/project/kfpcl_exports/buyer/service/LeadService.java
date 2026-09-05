@@ -35,7 +35,7 @@ public class LeadService {
             throw new IllegalArgumentException("Supplier not found with id: " + request.getSupplierId());
         }
 
-        Long buyerId = request.getBuyerId() != null ? request.getBuyerId() : 1L; // Fallback without JWT
+        String buyerId = request.getBuyerId() != null ? request.getBuyerId() : "1"; // Fallback without JWT
 
         ContactLead lead = new ContactLead(
                 buyerId,

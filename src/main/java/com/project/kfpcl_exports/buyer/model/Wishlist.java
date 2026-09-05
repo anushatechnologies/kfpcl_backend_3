@@ -32,7 +32,7 @@ public class Wishlist {
 
     public Wishlist() {}
 
-    public Wishlist(Long buyerId, Product product) {
+    public Wishlist(String buyerId, Product product) {
         this.buyerId = buyerId;
         this.product = product;
     }

@@ -24,7 +24,7 @@ public class RatingService {
         if (productOpt.isEmpty()) {
             throw new IllegalArgumentException("Product not found with id: " + request.getProductId());
         }
-        Long buyerId = request.getBuyerId() != null ? request.getBuyerId() : 1L;
+        String buyerId = request.getBuyerId() != null ? request.getBuyerId() : "1";
 
         ProductRating rating = new ProductRating(
                 buyerId,

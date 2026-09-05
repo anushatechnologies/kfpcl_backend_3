@@ -34,7 +34,7 @@ public interface RfqRepository extends JpaRepository<Rfq, Long>, JpaSpecificatio
 
     Page<Rfq> findByProductIdOrderByCreatedAtDesc(Long productId, Pageable pageable);
 
-    Page<Rfq> findByBuyerIdOrderByCreatedAtDesc(Long buyerId, Pageable pageable);
+    Page<Rfq> findByBuyerIdOrderByCreatedAtDesc(String buyerId, Pageable pageable);
 
     @Query("SELECT COUNT(r) FROM BuyerRfq r WHERE r.createdAt >= :startDate AND r.createdAt <= :endDate")
     long countByCreatedAtBetween(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);

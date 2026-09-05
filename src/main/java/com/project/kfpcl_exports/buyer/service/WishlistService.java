@@ -21,14 +21,14 @@ public class WishlistService {
     @Autowired
     private ProductRepository productRepository;
 
-    public List<Product> getWishlistProducts(Long buyerId) {
+    public List<Product> getWishlistProducts(String buyerId) {
         return wishlistRepository.findByBuyerId(buyerId)
                 .stream()
                 .map(Wishlist::getProduct)
                 .collect(Collectors.toList());
     }
 
-    public Wishlist addToWishlist(Long buyerId, Long productId) {
+    public Wishlist addToWishlist(String buyerId, Long productId) {
         Optional<Product> productOpt = productRepository.findById(productId);
         if (productOpt.isEmpty()) {
             throw new IllegalArgumentException("Product not found with id: " + productId);
@@ -42,7 +42,7 @@ public class WishlistService {
     }
 
     @Transactional
-    public void removeFromWishlist(Long buyerId, Long productId) {
+    public void removeFromWishlist(String buyerId, Long productId) {
         wishlistRepository.deleteByBuyerIdAndProductId(buyerId, productId);
     }
 }

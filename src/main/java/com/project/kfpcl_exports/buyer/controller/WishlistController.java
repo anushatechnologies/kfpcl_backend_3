@@ -18,14 +18,14 @@ public class WishlistController {
     private WishlistService wishlistService;
 
     @GetMapping
-    public ResponseEntity<List<Product>> getWishlist(@RequestParam(name = "buyerId", defaultValue = "1") Long buyerId) {
+    public ResponseEntity<List<Product>> getWishlist(@RequestParam(name = "buyerId", defaultValue = "1") String buyerId) {
         return ResponseEntity.ok(wishlistService.getWishlistProducts(buyerId));
     }
 
     @PostMapping
     public ResponseEntity<?> addToWishlist(@RequestBody WishlistRequest request) {
         try {
-            Long buyerId = request.getBuyerId() != null ? request.getBuyerId() : 1L;
+            String buyerId = request.getBuyerId() != null ? request.getBuyerId() : "1";
             Wishlist wishlist = wishlistService.addToWishlist(buyerId, request.getProductId());
             return ResponseEntity.ok(wishlist);
         } catch (IllegalArgumentException e) {
@@ -35,7 +35,7 @@ public class WishlistController {
 
     @DeleteMapping
     public ResponseEntity<?> removeFromWishlist(
-            @RequestParam(name = "buyerId", defaultValue = "1") Long buyerId,
+            @RequestParam(name = "buyerId", defaultValue = "1") String buyerId,
             @RequestParam(name = "productId") Long productId) {
         wishlistService.removeFromWishlist(buyerId, productId);
         return ResponseEntity.ok("Product removed from wishlist");
