@@ -92,6 +92,12 @@ public class AuthService {
         Optional<User> userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(phoneNumber);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
+            if (request.getFcmToken() != null && !request.getFcmToken().isBlank()) {
+                fcmTokenService.saveOrUpdateFcmToken(user.getId(), FcmTokenRequest.builder()
+                        .fcmToken(request.getFcmToken())
+                        .deviceType("ANDROID")
+                        .build());
+            }
             String accessToken = tokenService.createAccessToken(user.getId(), user.getPhoneNumber());
             String refreshToken = tokenService.createRefreshToken(user.getId(), user.getPhoneNumber());
 

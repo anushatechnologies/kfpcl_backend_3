@@ -108,23 +108,31 @@ public class AuthDTOs {
         @Size(min = 6, max = 6, message = "OTP must be 6 digits")
         private String otp;
 
+        private String fcmToken;
+
         public VerifyOtpRequest() {}
-        public VerifyOtpRequest(String phoneNumber, String otp) {
+        public VerifyOtpRequest(String phoneNumber, String otp, String fcmToken) {
             this.phoneNumber = phoneNumber;
             this.otp = otp;
+            this.fcmToken = fcmToken;
         }
         public String getPhoneNumber() { return phoneNumber; }
         public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+        public void setPhone(String phone) { this.phoneNumber = phone; }
         public String getOtp() { return otp; }
         public void setOtp(String otp) { this.otp = otp; }
+        public String getFcmToken() { return fcmToken; }
+        public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }
 
         public static VerifyOtpRequestBuilder builder() { return new VerifyOtpRequestBuilder(); }
         public static class VerifyOtpRequestBuilder {
             private String phoneNumber;
             private String otp;
+            private String fcmToken;
             public VerifyOtpRequestBuilder phoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; return this; }
             public VerifyOtpRequestBuilder otp(String otp) { this.otp = otp; return this; }
-            public VerifyOtpRequest build() { return new VerifyOtpRequest(phoneNumber, otp); }
+            public VerifyOtpRequestBuilder fcmToken(String fcmToken) { this.fcmToken = fcmToken; return this; }
+            public VerifyOtpRequest build() { return new VerifyOtpRequest(phoneNumber, otp, fcmToken); }
         }
     }
 
@@ -307,6 +315,7 @@ public class AuthDTOs {
 
         public String getPhoneNumber() { return phoneNumber; }
         public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+        public void setPhone(String phone) { this.phoneNumber = phone; }
         public String getOtp() { return otp; }
         public void setOtp(String otp) { this.otp = otp; }
         public String getFcmToken() { return fcmToken; }
