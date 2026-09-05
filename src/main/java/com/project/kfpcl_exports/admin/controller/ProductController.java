@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.project.kfpcl_exports.admin.repository.StoreRepository;
+
 @RestController("adminProductController")
 @RequestMapping({ "/api/products", "/api/admin/products" })
 @RequiredArgsConstructor
@@ -36,6 +38,7 @@ public class ProductController {
     private final ProductImageRepository productImageRepository;
     private final CategoryRepository categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
+    private final StoreRepository storeRepository;
     private final S3Service s3Service;
     private final ObjectMapper objectMapper;
 
@@ -88,6 +91,9 @@ public class ProductController {
             @RequestParam(value = "categoryName", required = false) String categoryName,
             @RequestParam(value = "subcategoryId", required = false) Long subcategoryId,
             @RequestParam(value = "subcategoryName", required = false) String subcategoryName,
+            @RequestParam(value = "storeId", required = false) Long storeId,
+            @RequestParam(value = "storeName", required = false) String storeName,
+            @RequestParam(value = "store", required = false) String store,
             @RequestParam(value = "mainImageUrl", required = false) String mainImageUrl,
             @RequestParam(value = "imageUrl", required = false) String imageUrl,
             @RequestParam(value = "trending", required = false) Boolean trending,
@@ -131,6 +137,13 @@ public class ProductController {
                 product.setSubcategoryId(subcategoryId);
             if (subcategoryName != null)
                 product.setSubcategoryName(subcategoryName);
+
+            String finalStoreName = StringUtils.hasText(storeName) ? storeName : store;
+            if (storeId != null)
+                product.setStoreId(storeId);
+            if (StringUtils.hasText(finalStoreName))
+                product.setStoreName(finalStoreName);
+
             if (trending != null)
                 product.setTrending(trending);
             if (active != null)
@@ -227,6 +240,10 @@ public class ProductController {
                 product.setSubcategoryId(productDetails.getSubcategoryId());
             if (productDetails.getSubcategoryName() != null)
                 product.setSubcategoryName(productDetails.getSubcategoryName());
+            if (productDetails.getStoreId() != null)
+                product.setStoreId(productDetails.getStoreId());
+            if (productDetails.getStoreName() != null)
+                product.setStoreName(productDetails.getStoreName());
             if (productDetails.getMainImageUrl() != null)
                 product.setMainImageUrl(productDetails.getMainImageUrl());
             if (productDetails.getTrending() != null)
@@ -259,6 +276,9 @@ public class ProductController {
             @RequestParam(value = "categoryName", required = false) String categoryName,
             @RequestParam(value = "subcategoryId", required = false) Long subcategoryId,
             @RequestParam(value = "subcategoryName", required = false) String subcategoryName,
+            @RequestParam(value = "storeId", required = false) Long storeId,
+            @RequestParam(value = "storeName", required = false) String storeName,
+            @RequestParam(value = "store", required = false) String store,
             @RequestParam(value = "mainImageUrl", required = false) String mainImageUrl,
             @RequestParam(value = "imageUrl", required = false) String imageUrl,
             @RequestParam(value = "trending", required = false) Boolean trending,
@@ -299,6 +319,10 @@ public class ProductController {
                         product.setSubcategoryId(parsed.getSubcategoryId());
                     if (parsed.getSubcategoryName() != null)
                         product.setSubcategoryName(parsed.getSubcategoryName());
+                    if (parsed.getStoreId() != null)
+                        product.setStoreId(parsed.getStoreId());
+                    if (parsed.getStoreName() != null)
+                        product.setStoreName(parsed.getStoreName());
                     if (parsed.getMainImageUrl() != null)
                         product.setMainImageUrl(parsed.getMainImageUrl());
                     if (parsed.getTrending() != null)
@@ -331,6 +355,13 @@ public class ProductController {
                 product.setSubcategoryId(subcategoryId);
             if (subcategoryName != null)
                 product.setSubcategoryName(subcategoryName);
+
+            String finalStoreName = StringUtils.hasText(storeName) ? storeName : store;
+            if (storeId != null)
+                product.setStoreId(storeId);
+            if (StringUtils.hasText(finalStoreName))
+                product.setStoreName(finalStoreName);
+
             if (trending != null)
                 product.setTrending(trending);
             if (active != null)
@@ -618,6 +649,13 @@ public class ProductController {
         if (product.getSubcategoryId() != null && !StringUtils.hasText(product.getSubcategoryName())) {
             subcategoryRepository.findById(product.getSubcategoryId())
                     .ifPresent(subcategory -> product.setSubcategoryName(subcategory.getName()));
+        }
+        if (product.getStoreId() != null && !StringUtils.hasText(product.getStoreName())) {
+            storeRepository.findById(product.getStoreId())
+                    .ifPresent(store -> product.setStoreName(store.getName()));
+        } else if (StringUtils.hasText(product.getStoreName()) && product.getStoreId() == null) {
+            storeRepository.findByNameIgnoreCase(product.getStoreName().trim())
+                    .ifPresent(store -> product.setStoreId(store.getId()));
         }
     }
 }

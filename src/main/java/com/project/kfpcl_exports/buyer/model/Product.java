@@ -46,6 +46,25 @@ public class Product {
     @JoinColumn(name = "supplier_id")
     private Supplier supplier;
 
+    @Column(name = "store_id")
+    private Long storeId;
+
+    @Column(name = "store_name")
+    private String storeName;
+
+    @Transient
+    @com.fasterxml.jackson.annotation.JsonProperty("store")
+    public String getStore() {
+        return storeName;
+    }
+
+    @Transient
+    public void setStore(String store) {
+        if (store != null && !store.isEmpty()) {
+            this.storeName = store;
+        }
+    }
+
     @Column(name = "main_image_url", columnDefinition = "TEXT")
     private String mainImageUrl;
 

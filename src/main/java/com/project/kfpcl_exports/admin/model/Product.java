@@ -43,6 +43,21 @@ public class Product {
 
     private String subcategoryName;
 
+    private Long storeId;
+
+    private String storeName;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("store")
+    public String getStore() {
+        return storeName;
+    }
+
+    public void setStore(String store) {
+        if (store != null && !store.isEmpty()) {
+            this.storeName = store;
+        }
+    }
+
     @com.fasterxml.jackson.annotation.JsonAlias({"imageUrl", "image", "mainImage", "productImage", "photo"})
     private String mainImageUrl;
 
