@@ -30,6 +30,7 @@ public class SecurityConfig {
                                 "/api/auth/**",
                                 "/api/policies/**",
                                 "/api/app/version",
+                                "/api/fcm/**",
                                 "/actuator/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",

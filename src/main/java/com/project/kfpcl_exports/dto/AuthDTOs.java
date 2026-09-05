@@ -768,4 +768,25 @@ public class AuthDTOs {
             public GenericResponse build() { return new GenericResponse(success, message); }
         }
     }
+
+    public static class TestNotificationRequest {
+        @NotBlank(message = "FCM token is required")
+        private String fcmToken;
+        private String title;
+        private String body;
+
+        public TestNotificationRequest() {}
+        public TestNotificationRequest(String fcmToken, String title, String body) {
+            this.fcmToken = fcmToken;
+            this.title = title;
+            this.body = body;
+        }
+
+        public String getFcmToken() { return fcmToken; }
+        public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }
+        public String getTitle() { return title; }
+        public void setTitle(String title) { this.title = title; }
+        public String getBody() { return body; }
+        public void setBody(String body) { this.body = body; }
+    }
 }
