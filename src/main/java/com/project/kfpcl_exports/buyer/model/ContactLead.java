@@ -12,7 +12,7 @@ public class ContactLead {
     private Long id;
 
     @Column(name = "buyer_id", nullable = false)
-    private Long buyerId;
+    private String buyerId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
@@ -47,8 +47,8 @@ public class ContactLead {
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
-    public Long getBuyerId() { return buyerId; }
-    public void setBuyerId(Long buyerId) { this.buyerId = buyerId; }
+    public String getBuyerId() { return buyerId; }
+    public void setBuyerId(String buyerId) { this.buyerId = buyerId; }
 
     public Product getProduct() { return product; }
     public void setProduct(Product product) { this.product = product; }

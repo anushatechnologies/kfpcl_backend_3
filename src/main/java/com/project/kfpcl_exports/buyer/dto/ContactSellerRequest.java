@@ -4,7 +4,7 @@ public class ContactSellerRequest {
     private Long productId;
     private String supplierId;
     private String contactType; // 'CALL' or 'WHATSAPP'
-    private Long buyerId;
+    private String buyerId;
 
     public ContactSellerRequest() {}
 
@@ -17,6 +17,6 @@ public class ContactSellerRequest {
     public String getContactType() { return contactType; }
     public void setContactType(String contactType) { this.contactType = contactType; }
 
-    public Long getBuyerId() { return buyerId; }
-    public void setBuyerId(Long buyerId) { this.buyerId = buyerId; }
+    public String getBuyerId() { return buyerId; }
+    public void setBuyerId(String buyerId) { this.buyerId = buyerId; }
 }

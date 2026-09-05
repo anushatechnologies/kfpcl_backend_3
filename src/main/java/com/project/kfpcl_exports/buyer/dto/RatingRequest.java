@@ -4,7 +4,7 @@ public class RatingRequest {
     private Long productId;
     private Integer rating;
     private String review;
-    private Long buyerId;
+    private String buyerId;
 
     public RatingRequest() {}
 
@@ -17,6 +17,6 @@ public class RatingRequest {
     public String getReview() { return review; }
     public void setReview(String review) { this.review = review; }
 
-    public Long getBuyerId() { return buyerId; }
-    public void setBuyerId(Long buyerId) { this.buyerId = buyerId; }
+    public String getBuyerId() { return buyerId; }
+    public void setBuyerId(String buyerId) { this.buyerId = buyerId; }
 }

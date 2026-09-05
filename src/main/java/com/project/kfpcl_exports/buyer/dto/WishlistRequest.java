@@ -2,13 +2,13 @@ package com.project.kfpcl_exports.buyer.dto;
 
 public class WishlistRequest {
     private Long productId;
-    private Long buyerId;
+    private String buyerId;
 
     public WishlistRequest() {}
 
     public Long getProductId() { return productId; }
     public void setProductId(Long productId) { this.productId = productId; }
 
-    public Long getBuyerId() { return buyerId; }
-    public void setBuyerId(Long buyerId) { this.buyerId = buyerId; }
+    public String getBuyerId() { return buyerId; }
+    public void setBuyerId(String buyerId) { this.buyerId = buyerId; }
 }
