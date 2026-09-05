@@ -260,16 +260,34 @@ public class SubcategoryController {
         Optional<Subcategory> subOpt = subcategoryRepository.findById(id);
         if (subOpt.isPresent()) {
             Subcategory sub = subOpt.get();
+            // Delete image from S3
+            if (StringUtils.hasText(sub.getImageUrl())) {
+                try {
+                    s3Service.deleteObject(sub.getImageUrl());
+                    sub.setImageUrl(null);
+                } catch (Exception e) {
+                    log.warn("Failed to delete subcategory image from S3 during soft delete: {}", e.getMessage());
+                }
+            }
             sub.setDeleted(true);
             subcategoryRepository.save(sub);
-            return ResponseEntity.ok(Map.of("message", "Subcategory soft deleted", "success", true));
+            return ResponseEntity.ok(Map.of("message", "Subcategory soft deleted and image removed from S3", "success", true));
         }
         return ResponseEntity.notFound().build();
     }
 
     @DeleteMapping("/{id}/hard")
     public ResponseEntity<Map<String, Object>> hardDeleteSubcategory(@PathVariable Long id) {
-        if (subcategoryRepository.existsById(id)) {
+        Optional<Subcategory> subOpt = subcategoryRepository.findById(id);
+        if (subOpt.isPresent()) {
+            Subcategory subcategory = subOpt.get();
+            if (StringUtils.hasText(subcategory.getImageUrl())) {
+                try {
+                    s3Service.deleteObject(subcategory.getImageUrl());
+                } catch (Exception e) {
+                    log.warn("Failed to delete subcategory image from S3: {}", e.getMessage());
+                }
+            }
             subcategoryRepository.deleteById(id);
             return ResponseEntity.ok(Map.of("message", "Subcategory permanently deleted", "success", true));
         }

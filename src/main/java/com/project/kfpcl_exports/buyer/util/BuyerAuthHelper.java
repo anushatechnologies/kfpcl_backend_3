@@ -101,12 +101,9 @@ public class BuyerAuthHelper {
         Optional<User> byPhone = userRepository.findByPhoneNumber(identifier);
         if (byPhone.isPresent()) return byPhone.get();
 
-        // By Numeric ID
-        try {
-            Long userId = Long.parseLong(identifier);
-            Optional<User> byId = userRepository.findById(userId);
-            if (byId.isPresent()) return byId.get();
-        } catch (NumberFormatException ignored) {}
+        // By ID
+        Optional<User> byId = userRepository.findById(identifier);
+        if (byId.isPresent()) return byId.get();
 
         // Auto-create new buyer
         String email = identifier.contains("@")

@@ -24,7 +24,7 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "title")
+    @Column(name = "name")
     @com.fasterxml.jackson.annotation.JsonAlias({"title", "name", "productName"})
     private String name;
 
@@ -93,10 +93,12 @@ public class Product {
         }
     }
 
+    @Transient
     public String getTitle() {
         return name;
     }
 
+    @Transient
     public void setTitle(String title) {
         this.name = title;
     }
@@ -109,14 +111,17 @@ public class Product {
         this.isActive = active;
     }
 
+    @Transient
     public String getImageUrl() {
         return imageUrl != null ? imageUrl : mainImageUrl;
     }
 
+    @Transient
     public String getMainImageUrl() {
         return mainImageUrl != null ? mainImageUrl : imageUrl;
     }
 
+    @Transient
     public Double getPrice() {
         if (numericPrice != null) {
             return numericPrice.doubleValue();

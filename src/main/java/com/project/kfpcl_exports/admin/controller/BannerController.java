@@ -192,7 +192,16 @@ public class BannerController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> deleteBanner(@PathVariable Long id) {
-        if (bannerRepository.existsById(id)) {
+        Optional<Banner> bOpt = bannerRepository.findById(id);
+        if (bOpt.isPresent()) {
+            Banner banner = bOpt.get();
+            if (StringUtils.hasText(banner.getImageUrl())) {
+                try {
+                    s3Service.deleteObject(banner.getImageUrl());
+                } catch (Exception e) {
+                    log.warn("Failed to delete banner image from S3: {}", e.getMessage());
+                }
+            }
             bannerRepository.deleteById(id);
             return ResponseEntity.ok(Map.of("message", "Banner deleted", "success", true));
         }

@@ -227,7 +227,16 @@ public class StoreController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> deleteStore(@PathVariable Long id) {
-        if (storeRepository.existsById(id)) {
+        Optional<Store> sOpt = storeRepository.findById(id);
+        if (sOpt.isPresent()) {
+            Store store = sOpt.get();
+            if (StringUtils.hasText(store.getImageUrl())) {
+                try {
+                    s3Service.deleteObject(store.getImageUrl());
+                } catch (Exception e) {
+                    log.warn("Failed to delete store image from S3: {}", e.getMessage());
+                }
+            }
             storeRepository.deleteById(id);
             return ResponseEntity.ok(Map.of("message", "Store deleted", "success", true));
         }

@@ -437,7 +437,29 @@ public class ProductController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> deleteProduct(@PathVariable Long id) {
-        if (productRepository.existsById(id)) {
+        Optional<Product> pOpt = productRepository.findById(id);
+        if (pOpt.isPresent()) {
+            Product product = pOpt.get();
+            // Delete main image
+            if (StringUtils.hasText(product.getMainImageUrl())) {
+                try {
+                    s3Service.deleteObject(product.getMainImageUrl());
+                } catch (Exception e) {
+                    log.warn("Failed to delete main product image from S3: {}", e.getMessage());
+                }
+            }
+            // Delete gallery images
+            if (product.getImages() != null) {
+                for (ProductImage img : product.getImages()) {
+                    if (StringUtils.hasText(img.getImageUrl())) {
+                        try {
+                            s3Service.deleteObject(img.getImageUrl());
+                        } catch (Exception e) {
+                            log.warn("Failed to delete product gallery image from S3: {}", e.getMessage());
+                        }
+                    }
+                }
+            }
             productRepository.deleteById(id);
             return ResponseEntity.ok(Map.of("message", "Product deleted", "success", true));
         }
@@ -563,7 +585,16 @@ public class ProductController {
 
     @DeleteMapping("/images/{imageId}")
     public ResponseEntity<Map<String, Object>> deleteProductImage(@PathVariable Long imageId) {
-        if (productImageRepository.existsById(imageId)) {
+        Optional<ProductImage> imgOpt = productImageRepository.findById(imageId);
+        if (imgOpt.isPresent()) {
+            ProductImage img = imgOpt.get();
+            if (StringUtils.hasText(img.getImageUrl())) {
+                try {
+                    s3Service.deleteObject(img.getImageUrl());
+                } catch (Exception e) {
+                    log.warn("Failed to delete product image from S3: {}", e.getMessage());
+                }
+            }
             productImageRepository.deleteById(imageId);
             return ResponseEntity.ok(Map.of("message", "Product image deleted", "success", true));
         }
