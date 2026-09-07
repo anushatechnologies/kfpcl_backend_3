@@ -46,6 +46,8 @@ public class DbMigrationFix implements CommandLineRunner {
         ensureAutoIncrement("contact_leads", "id");
         ensureAutoIncrement("policies", "id");
         makeColumnNullable("users", "enabled", "BOOLEAN DEFAULT TRUE");
+        makeColumnNullable("users", "password", "VARCHAR(255)");
+        makeColumnNullable("users", "role", "VARCHAR(50) DEFAULT 'ROLE_BUYER'");
     }
 
     private void cleanupInvalidColumnData() {

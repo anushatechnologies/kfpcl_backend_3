@@ -44,6 +44,12 @@ public class User {
     @Column(name = "enabled", nullable = false)
     private Boolean enabled = true;
 
+    @Column(name = "password")
+    private String password;
+
+    @Column(name = "role")
+    private String role = "ROLE_BUYER";
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -105,6 +111,12 @@ public class User {
 
     public Boolean getEnabled() { return enabled; }
     public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
