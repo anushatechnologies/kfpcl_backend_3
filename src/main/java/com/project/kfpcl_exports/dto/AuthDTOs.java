@@ -331,6 +331,61 @@ public class AuthDTOs {
         }
     }
 
+    public static class FirebaseLoginRequest {
+        @NotBlank(message = "idToken is required")
+        private String idToken;
+        private String fcmToken;
+        private String fullName;
+        private String email;
+        private String companyName;
+        private String businessType;
+        private String state;
+        private String city;
+
+        public FirebaseLoginRequest() {}
+        public FirebaseLoginRequest(String idToken, String fcmToken, String fullName, String email, String companyName, String businessType, String state, String city) {
+            this.idToken = idToken;
+            this.fcmToken = fcmToken;
+            this.fullName = fullName;
+            this.email = email;
+            this.companyName = companyName;
+            this.businessType = businessType;
+            this.state = state;
+            this.city = city;
+        }
+
+        public String getIdToken() { return idToken; }
+        public void setIdToken(String idToken) { this.idToken = idToken; }
+        public String getFcmToken() { return fcmToken; }
+        public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }
+        public String getFullName() { return fullName; }
+        public void setFullName(String fullName) { this.fullName = fullName; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+        public String getCompanyName() { return companyName; }
+        public void setCompanyName(String companyName) { this.companyName = companyName; }
+        public String getBusinessType() { return businessType; }
+        public void setBusinessType(String businessType) { this.businessType = businessType; }
+        public String getState() { return state; }
+        public void setState(String state) { this.state = state; }
+        public String getCity() { return city; }
+        public void setCity(String city) { this.city = city; }
+
+        public static FirebaseLoginRequestBuilder builder() { return new FirebaseLoginRequestBuilder(); }
+        public static class FirebaseLoginRequestBuilder {
+            private String idToken, fcmToken, fullName, email, companyName, businessType, state, city;
+            public FirebaseLoginRequestBuilder idToken(String v) { idToken = v; return this; }
+            public FirebaseLoginRequestBuilder fcmToken(String v) { fcmToken = v; return this; }
+            public FirebaseLoginRequestBuilder fullName(String v) { fullName = v; return this; }
+            public FirebaseLoginRequestBuilder email(String v) { email = v; return this; }
+            public FirebaseLoginRequestBuilder companyName(String v) { companyName = v; return this; }
+            public FirebaseLoginRequestBuilder businessType(String v) { businessType = v; return this; }
+            public FirebaseLoginRequestBuilder state(String v) { state = v; return this; }
+            public FirebaseLoginRequestBuilder city(String v) { city = v; return this; }
+            public FirebaseLoginRequest build() { return new FirebaseLoginRequest(idToken, fcmToken, fullName, email, companyName, businessType, state, city); }
+        }
+    }
+
     public static class RefreshTokenRequest {
         @NotBlank(message = "Refresh token is required")
         private String refreshToken;

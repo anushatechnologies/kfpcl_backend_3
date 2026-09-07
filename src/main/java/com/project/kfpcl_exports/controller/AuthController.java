@@ -52,6 +52,11 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 
+    @PostMapping("/firebase-login")
+    public ResponseEntity<TokenResponse> firebaseLogin(@Valid @RequestBody FirebaseLoginRequest request) {
+        return ResponseEntity.ok(authService.firebaseLogin(request));
+    }
+
     @PostMapping("/refresh")
     public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         return ResponseEntity.ok(authService.refreshToken(request));

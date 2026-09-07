@@ -194,6 +194,54 @@ public class AuthService {
         return issueTokensAndSaveFcm(user, request.getFcmToken());
     }
 
+    @Transactional
+    public TokenResponse firebaseLogin(FirebaseLoginRequest request) {
+        String phoneNumber;
+        try {
+            com.google.firebase.auth.FirebaseToken decodedToken = 
+                    com.google.firebase.auth.FirebaseAuth.getInstance().verifyIdToken(request.getIdToken());
+            phoneNumber = (String) decodedToken.getClaims().get("phone_number");
+            if (phoneNumber == null || phoneNumber.isBlank()) {
+                phoneNumber = decodedToken.getUid();
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid Firebase ID token: " + e.getMessage());
+        }
+
+        String clean10 = phoneNumber.replaceAll("[^0-9]", "");
+        if (clean10.length() > 10) {
+            clean10 = clean10.substring(clean10.length() - 10);
+        }
+
+        Optional<User> userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(phoneNumber);
+        if (userOpt.isEmpty() && !clean10.isEmpty()) {
+            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(clean10);
+        }
+        if (userOpt.isEmpty() && !clean10.isEmpty()) {
+            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue("+91" + clean10);
+        }
+
+        User user;
+        if (userOpt.isPresent()) {
+            user = userOpt.get();
+        } else {
+            user = User.builder()
+                    .phoneNumber(!clean10.isEmpty() ? clean10 : phoneNumber)
+                    .fullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName() : "Buyer " + clean10)
+                    .email(request.getEmail() != null ? request.getEmail() : "")
+                    .companyName(request.getCompanyName() != null && !request.getCompanyName().isBlank() ? request.getCompanyName() : "KFPCL Buyer")
+                    .businessType(request.getBusinessType() != null && !request.getBusinessType().isBlank() ? request.getBusinessType() : "Wholesaler")
+                    .state(request.getState() != null && !request.getState().isBlank() ? request.getState() : "Telangana")
+                    .city(request.getCity() != null && !request.getCity().isBlank() ? request.getCity() : "Hyderabad")
+                    .isVerified(true)
+                    .isActive(true)
+                    .build();
+            user = userRepository.save(user);
+        }
+
+        return issueTokensAndSaveFcm(user, request.getFcmToken());
+    }
+
     public TokenResponse refreshToken(RefreshTokenRequest request) {
         String refreshToken = request.getRefreshToken();
         TokenService.RefreshTokenData data = tokenService.validateRefreshToken(refreshToken);
