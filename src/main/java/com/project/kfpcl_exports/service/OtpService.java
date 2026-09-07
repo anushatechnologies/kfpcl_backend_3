@@ -35,11 +35,21 @@ public class OtpService {
         public Instant getExpiresAt() { return expiresAt; }
     }
 
+    public String normalizePhoneNumber(String phoneNumber) {
+        if (phoneNumber == null) return "";
+        String clean = phoneNumber.replaceAll("[^0-9]", "");
+        if (clean.length() > 10) {
+            clean = clean.substring(clean.length() - 10);
+        }
+        return clean.isEmpty() ? phoneNumber.trim() : clean;
+    }
+
     public String generateAndSendOtp(String phoneNumber) {
+        String normalizedPhone = normalizePhoneNumber(phoneNumber);
         Instant now = Instant.now();
 
         // 1. Rate Limiting Check (Max 3 requests per 10 minutes)
-        List<Instant> timestamps = rateLimitStorage.computeIfAbsent(phoneNumber, k -> new ArrayList<>());
+        List<Instant> timestamps = rateLimitStorage.computeIfAbsent(normalizedPhone, k -> new ArrayList<>());
         synchronized (timestamps) {
             timestamps.removeIf(t -> t.isBefore(now.minusSeconds(RATE_LIMIT_WINDOW_SECONDS)));
             if (timestamps.size() >= RATE_LIMIT_MAX_REQUESTS) {
@@ -48,7 +58,7 @@ public class OtpService {
         }
 
         // 2. Cooldown Window Check (60 seconds)
-        OtpData existingOtp = otpStorage.get(phoneNumber);
+        OtpData existingOtp = otpStorage.get(normalizedPhone);
         if (existingOtp != null) {
             long secondsSinceLastRequest = now.getEpochSecond() - existingOtp.getCreatedAt().getEpochSecond();
             if (secondsSinceLastRequest < COOLDOWN_SECONDS) {
@@ -62,38 +72,39 @@ public class OtpService {
 
         // 4. Store OTP with 300s TTL
         OtpData newOtpData = new OtpData(otp, now, now.plusSeconds(OTP_TTL_SECONDS));
-        otpStorage.put(phoneNumber, newOtpData);
+        otpStorage.put(normalizedPhone, newOtpData);
 
         synchronized (timestamps) {
             timestamps.add(now);
         }
 
         // In a production setup, SMS Gateway Webhook / SDK would be invoked here.
-        System.out.println("[SMS OTP ENGINE] Sent OTP " + otp + " to phone: " + phoneNumber);
+        System.out.println("[SMS OTP ENGINE] Sent OTP " + otp + " to phone: " + normalizedPhone);
 
         return otp;
     }
 
     public boolean verifyOtp(String phoneNumber, String otpInput) {
-        OtpData otpData = otpStorage.get(phoneNumber);
+        String normalizedPhone = normalizePhoneNumber(phoneNumber);
+        OtpData otpData = otpStorage.get(normalizedPhone);
         if (otpData == null) {
             return false;
         }
 
         if (Instant.now().isAfter(otpData.getExpiresAt())) {
-            otpStorage.remove(phoneNumber);
+            otpStorage.remove(normalizedPhone);
             return false;
         }
 
         boolean matches = otpData.getOtp().equals(otpInput);
         if (matches) {
-            otpStorage.remove(phoneNumber); // Single-use OTP
+            otpStorage.remove(normalizedPhone); // Single-use OTP
         }
         return matches;
     }
 
     public OtpData getActiveOtpData(String phoneNumber) {
-        return otpStorage.get(phoneNumber);
+        return otpStorage.get(normalizePhoneNumber(phoneNumber));
     }
 
     public void clearOtpStorage() {

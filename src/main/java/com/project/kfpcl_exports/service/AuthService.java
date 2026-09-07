@@ -100,7 +100,19 @@ public class AuthService {
                     .build();
         }
 
+        String clean10 = phoneNumber.replaceAll("[^0-9]", "");
+        if (clean10.length() > 10) {
+            clean10 = clean10.substring(clean10.length() - 10);
+        }
+
         Optional<User> userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(phoneNumber);
+        if (userOpt.isEmpty() && !clean10.isEmpty()) {
+            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(clean10);
+        }
+        if (userOpt.isEmpty() && !clean10.isEmpty()) {
+            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue("+91" + clean10);
+        }
+
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             if (request.getFcmToken() != null && !request.getFcmToken().isBlank()) {
@@ -188,8 +200,20 @@ public class AuthService {
             throw new IllegalArgumentException("Invalid or expired OTP");
         }
 
-        User user = userRepository.findByPhoneNumberAndIsActiveTrue(phoneNumber)
-                .orElseThrow(() -> new IllegalArgumentException("User not registered or account inactive"));
+        String clean10 = phoneNumber.replaceAll("[^0-9]", "");
+        if (clean10.length() > 10) {
+            clean10 = clean10.substring(clean10.length() - 10);
+        }
+
+        Optional<User> userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(phoneNumber);
+        if (userOpt.isEmpty() && !clean10.isEmpty()) {
+            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(clean10);
+        }
+        if (userOpt.isEmpty() && !clean10.isEmpty()) {
+            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue("+91" + clean10);
+        }
+
+        User user = userOpt.orElseThrow(() -> new IllegalArgumentException("User not registered or account inactive"));
 
         return issueTokensAndSaveFcm(user, request.getFcmToken());
     }
