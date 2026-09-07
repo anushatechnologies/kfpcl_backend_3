@@ -39,25 +39,28 @@ public class FirebaseConfig {
                 }
 
                 try (InputStream is = serviceAccountStream) {
-                    ObjectMapper mapper = new ObjectMapper();
-                    ObjectNode node = (ObjectNode) mapper.readTree(is);
-                    if (node.has("private_key")) {
-                        String rawKey = node.get("private_key").asText();
-                        String formattedKey = rawKey.replace("\\n", "\n");
-                        node.put("private_key", formattedKey);
+                    byte[] bytes = is.readAllBytes();
+                    GoogleCredentials credentials;
+                    try {
+                        credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(bytes));
+                    } catch (Exception e1) {
+                        String jsonStr = new String(bytes, StandardCharsets.UTF_8);
+                        if (jsonStr.contains("\\\\n")) {
+                            jsonStr = jsonStr.replace("\\\\n", "\n");
+                        } else if (jsonStr.contains("\\n") && !jsonStr.contains("\n")) {
+                            jsonStr = jsonStr.replace("\\n", "\n");
+                        }
+                        credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(jsonStr.getBytes(StandardCharsets.UTF_8)));
                     }
 
-                    byte[] jsonBytes = mapper.writeValueAsBytes(node);
-                    ByteArrayInputStream bais = new ByteArrayInputStream(jsonBytes);
-
                     FirebaseOptions options = FirebaseOptions.builder()
-                            .setCredentials(GoogleCredentials.fromStream(bais))
+                            .setCredentials(credentials)
                             .setDatabaseUrl("https://anushabazaar-2288e-default-rtdb.firebaseio.com")
                             .build();
 
                     FirebaseApp.initializeApp(options);
                     lastError = null;
-                    System.out.println("[FIREBASE CONFIG] FirebaseApp initialized successfully for project: " + node.path("project_id").asText());
+                    System.out.println("[FIREBASE CONFIG] FirebaseApp initialized successfully!");
                 }
             }
         } catch (Exception e) {
