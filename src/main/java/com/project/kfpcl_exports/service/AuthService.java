@@ -39,7 +39,18 @@ public class AuthService {
     }
 
     public CheckPhoneResponse checkPhone(String phoneNumber) {
-        boolean exists = userRepository.existsByPhoneNumberAndIsActiveTrue(phoneNumber);
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            return CheckPhoneResponse.builder().exists(false).build();
+        }
+        String trimmed = phoneNumber.trim();
+        String clean10 = trimmed.replaceAll("[^0-9]", "");
+        if (clean10.length() > 10) {
+            clean10 = clean10.substring(clean10.length() - 10);
+        }
+        boolean exists = userRepository.existsByPhoneNumberAndIsActiveTrue(trimmed)
+                || (!clean10.isEmpty() && userRepository.existsByPhoneNumberAndIsActiveTrue(clean10))
+                || (!clean10.isEmpty() && userRepository.existsByPhoneNumberAndIsActiveTrue("+91" + clean10))
+                || userRepository.existsByPhoneNumber(trimmed);
         return CheckPhoneResponse.builder().exists(exists).build();
     }
 

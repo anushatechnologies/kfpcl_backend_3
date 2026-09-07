@@ -128,11 +128,50 @@ jobs:
       # ==========================================
       - name: Deploy latest image to ECS
         run: |
-          aws ecs update-service \
+          echo "Fetching active task definition..."
+          TASK_DEF_ARN=$(aws ecs describe-services \
             --cluster "$ECS_CLUSTER" \
-            --service "$ECS_SERVICE" \
-            --force-new-deployment \
-            --region "$AWS_REGION"
+            --services "$ECS_SERVICE" \
+            --region "$AWS_REGION" \
+            --query "services[0].taskDefinition" \
+            --output text)
+          echo "Active Task Definition ARN: $TASK_DEF_ARN"
+
+          NEW_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
+          echo "Target Container Image: $NEW_IMAGE"
+
+          TASK_DEF_JSON=$(aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_ARN" \
+            --region "$AWS_REGION" \
+            --query "taskDefinition")
+
+          NEW_TASK_DEF=$(echo "$TASK_DEF_JSON" | jq --arg IMAGE "$NEW_IMAGE" '
+            del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+            | .containerDefinitions[0].image = $IMAGE
+          ')
+
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --region "$AWS_REGION" \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query "taskDefinition.taskDefinitionArn" \
+            --output text || echo "")
+
+          if [ -n "$NEW_TASK_DEF_ARN" ]; then
+            echo "Successfully registered new Task Definition: $NEW_TASK_DEF_ARN"
+            aws ecs update-service \
+              --cluster "$ECS_CLUSTER" \
+              --service "$ECS_SERVICE" \
+              --task-definition "$NEW_TASK_DEF_ARN" \
+              --force-new-deployment \
+              --region "$AWS_REGION"
+          else
+            echo "Fallback: forcing deployment on current service definition..."
+            aws ecs update-service \
+              --cluster "$ECS_CLUSTER" \
+              --service "$ECS_SERVICE" \
+              --force-new-deployment \
+              --region "$AWS_REGION"
+          fi
 
       # ==========================================
       # WAIT FOR DEPLOYMENT
