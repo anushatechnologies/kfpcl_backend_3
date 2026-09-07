@@ -86,6 +86,15 @@ public class Product {
     @Column(name = "numeric_price")
     private BigDecimal numericPrice;
 
+    @Column(name = "original_price")
+    private Double originalPrice;
+
+    @Column(name = "stock_quantity")
+    private Integer stockQuantity;
+
+    @Column(name = "unit", length = 50)
+    private String unit;
+
     @Column(columnDefinition = "TEXT")
     private String specifications;
 
@@ -140,7 +149,7 @@ public class Product {
         return mainImageUrl != null ? mainImageUrl : imageUrl;
     }
 
-    @Transient
+    @com.fasterxml.jackson.annotation.JsonProperty("price")
     public Double getPrice() {
         if (numericPrice != null) {
             return numericPrice.doubleValue();
@@ -150,7 +159,38 @@ public class Product {
                 return Double.parseDouble(indicativePrice.replaceAll("[^0-9.]", ""));
             } catch (Exception ignored) {}
         }
-        return null;
+        if (originalPrice != null) {
+            return originalPrice;
+        }
+        return 0.0;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("mrp")
+    public Double getMrp() {
+        if (originalPrice != null && originalPrice > 0) {
+            return originalPrice;
+        }
+        Double p = getPrice();
+        return (p != null && p > 0) ? p : 0.0;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("variants")
+    public java.util.List<java.util.Map<String, Object>> getVariants() {
+        java.util.List<java.util.Map<String, Object>> vars = new java.util.ArrayList<>();
+        Double p = getPrice();
+        Double m = getMrp();
+        int stock = (stockQuantity != null && stockQuantity > 0) ? stockQuantity : 100;
+
+        java.util.Map<String, Object> standardVariant = new java.util.LinkedHashMap<>();
+        standardVariant.put("id", id != null ? id : 1L);
+        standardVariant.put("name", (name != null && !name.isBlank()) ? name + " (Standard pack)" : "Standard pack");
+        standardVariant.put("price", p != null ? p : 0.0);
+        standardVariant.put("discountPrice", (m != null && p != null && m > p) ? p : null);
+        standardVariant.put("mrp", m != null ? m : p);
+        standardVariant.put("stockQuantity", stock);
+        standardVariant.put("isActive", isActive != null ? isActive : true);
+        vars.add(standardVariant);
+        return vars;
     }
 }
 

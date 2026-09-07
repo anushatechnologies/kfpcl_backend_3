@@ -51,6 +51,9 @@ public class AllRemainingModulesApiTest {
     @Autowired
     private ProductRepository buyerProductRepository;
 
+    @Autowired
+    private com.project.kfpcl_exports.admin.repository.ProductRepository adminProductRepository;
+
     // =========================================================================
     // 1. STORE MANAGEMENT APIS (/api/stores)
     // =========================================================================
@@ -295,5 +298,29 @@ public class AllRemainingModulesApiTest {
         mockMvc.perform(get("/api/v1/admin/catalog/categories"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
+    }
+
+    // =========================================================================
+    // 9. BUYER PRODUCT PRICE & VARIANTS APIS (/api/buyer/products)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Verify /api/buyer/products returns populated price, mrp, and variants")
+    void testBuyerProductPriceAndVariants() throws Exception {
+        com.project.kfpcl_exports.admin.model.Product ap = new com.project.kfpcl_exports.admin.model.Product();
+        ap.setTitle("Premium Basmati Rice");
+        ap.setPrice(150.0);
+        ap.setOriginalPrice(180.0);
+        ap.setStock(100);
+        ap.setActive(true);
+        adminProductRepository.save(ap);
+
+        mockMvc.perform(get("/api/buyer/products?page=1&limit=3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].price").value(150.0))
+                .andExpect(jsonPath("$.content[0].mrp").value(180.0))
+                .andExpect(jsonPath("$.content[0].variants").isArray())
+                .andExpect(jsonPath("$.content[0].variants[0].price").value(150.0));
     }
 }
