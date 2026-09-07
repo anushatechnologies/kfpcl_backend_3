@@ -1,19 +1,17 @@
-server.port=8080
+server.port=9000
 
 # -------------------------------------------------------
-# DATABASE CONFIGURATION
-# Copy this file to application.properties and fill in
-# your actual MySQL credentials (never commit that file)
+# POSTGRESQL DATABASE CONFIGURATION
 # -------------------------------------------------------
-spring.datasource.url=jdbc:mysql://localhost:3306/kfpcl_exports_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-spring.datasource.username=YOUR_MYSQL_USERNAME
-spring.datasource.password=YOUR_MYSQL_PASSWORD
-spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+spring.datasource.url=jdbc:postgresql://localhost:5432/kfpcl_exports_db
+spring.datasource.username=postgres
+spring.datasource.password=123
+spring.datasource.driver-class-name=org.postgresql.Driver
 
 spring.jpa.hibernate.ddl-auto=update
 spring.jpa.show-sql=true
 spring.jpa.properties.hibernate.format_sql=true
-spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
 
 # File upload properties
 spring.servlet.multipart.max-file-size=10MB
@@ -22,6 +20,5 @@ spring.servlet.multipart.max-request-size=10MB
 # -------------------------------------------------------
 # AWS S3 CONFIGURATION
 # -------------------------------------------------------
-aws.region=${AWS_REGION:ap-south-2}
-aws.s3.bucket=${AWS_S3_BUCKET:kfpcl-exports-media-319759856065}
-
+aws.region=ap-south-2
+aws.s3.bucket=kfpcl-exports-media-319759856065

@@ -3,6 +3,7 @@ package com.project.kfpcl_exports.buyer.util;
 import com.project.kfpcl_exports.buyer.model.User;
 import com.project.kfpcl_exports.buyer.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -25,7 +26,7 @@ public class BuyerAuthHelper {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public BuyerAuthHelper(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public BuyerAuthHelper(@Qualifier("buyerUserRepository") UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
     }

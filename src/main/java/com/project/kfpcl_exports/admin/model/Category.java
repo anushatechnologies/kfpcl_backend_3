@@ -5,7 +5,7 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
-@Entity
+@Entity(name = "AdminCategory")
 @Table(name = "admin_categories")
 @Getter
 @Setter

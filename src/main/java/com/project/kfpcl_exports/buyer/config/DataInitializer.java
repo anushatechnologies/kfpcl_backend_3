@@ -5,6 +5,7 @@ import com.project.kfpcl_exports.buyer.enums.RfqStatus;
 import com.project.kfpcl_exports.buyer.model.*;
 import com.project.kfpcl_exports.buyer.repository.*;
 import com.project.kfpcl_exports.buyer.service.NotificationService;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -24,7 +25,7 @@ public class DataInitializer implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
 
     public DataInitializer(
-            UserRepository userRepository,
+            @Qualifier("buyerUserRepository") UserRepository userRepository,
             CategoryRepository categoryRepository,
             ProductRepository productRepository,
             SupplierRepository supplierRepository,
