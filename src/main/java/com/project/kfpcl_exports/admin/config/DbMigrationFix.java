@@ -6,7 +6,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import java.sql.Connection;
+import java.sql.Statement;
 @Component
 @RequiredArgsConstructor
 public class DbMigrationFix implements CommandLineRunner {
@@ -25,8 +26,14 @@ public class DbMigrationFix implements CommandLineRunner {
         // 3. Dynamically find and drop any foreign key on buyer_rfqs referencing admin_products
         dropForeignKeysReferencingTable("buyer_rfqs", "admin_products");
 
-        // 4. Ensure AUTO_INCREMENT on id column for tables with IDENTITY generation strategy
+        // 4. Sanitize old non-numeric values in legacy columns if any
+        cleanupInvalidColumnData();
+
+        // 5. Ensure AUTO_INCREMENT on id column for tables with IDENTITY generation strategy
         ensureAutoIncrement("products", "id");
+        makeColumnNullable("products", "category_id", "BIGINT");
+        makeColumnNullable("products", "subcategory_id", "BIGINT");
+        makeColumnNullable("products", "store_id", "BIGINT");
         ensureAutoIncrement("admin_categories", "id");
         ensureAutoIncrement("admin_subcategories", "id");
         ensureAutoIncrement("product_images", "id");
@@ -40,13 +47,43 @@ public class DbMigrationFix implements CommandLineRunner {
         ensureAutoIncrement("policies", "id");
     }
 
-    private void ensureAutoIncrement(String tableName, String columnName) {
+    private void cleanupInvalidColumnData() {
         try {
-            jdbcTemplate.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnName + " BIGINT NOT NULL AUTO_INCREMENT");
-            log.info("Successfully set AUTO_INCREMENT on {}.{}", tableName, columnName);
+            jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
+            jdbcTemplate.execute("UPDATE products SET subcategory_id = NULL WHERE CAST(subcategory_id AS CHAR) REGEXP '[^0-9]'");
+            jdbcTemplate.execute("UPDATE products SET category_id = NULL WHERE CAST(category_id AS CHAR) REGEXP '[^0-9]'");
+            jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
         } catch (Exception e) {
-            log.debug("Could not set AUTO_INCREMENT on {}.{}: {}", tableName, columnName, e.getMessage());
+            log.debug("Data cleanup notice: {}", e.getMessage());
         }
+    }
+
+    private void makeColumnNullable(String tableName, String columnName, String columnType) {
+        jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) conn -> {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET FOREIGN_KEY_CHECKS = 0");
+                stmt.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnName + " " + columnType + " NULL");
+                stmt.execute("SET FOREIGN_KEY_CHECKS = 1");
+                log.info("Successfully made {}.{} nullable", tableName, columnName);
+            } catch (Exception e) {
+                log.debug("Could not make {}.{} nullable: {}", tableName, columnName, e.getMessage());
+            }
+            return null;
+        });
+    }
+
+    private void ensureAutoIncrement(String tableName, String columnName) {
+        jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) conn -> {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET FOREIGN_KEY_CHECKS = 0");
+                stmt.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnName + " BIGINT NOT NULL AUTO_INCREMENT");
+                stmt.execute("SET FOREIGN_KEY_CHECKS = 1");
+                log.info("Successfully set AUTO_INCREMENT on {}.{}", tableName, columnName);
+            } catch (Exception e) {
+                log.debug("Could not set AUTO_INCREMENT on {}.{}: {}", tableName, columnName, e.getMessage());
+            }
+            return null;
+        });
     }
 
     private void dropForeignKeyIfExists(String tableName, String constraintName) {

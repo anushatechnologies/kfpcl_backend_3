@@ -24,8 +24,12 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.project.kfpcl_exports.admin.repository.StoreRepository;
+import com.project.kfpcl_exports.admin.dto.ProductRequestDTO;
+import com.project.kfpcl_exports.admin.dto.ProductResponseDTO;
+import com.project.kfpcl_exports.admin.service.ProductService;
 
 @RestController("adminProductController")
 @RequestMapping({ "/api/products", "/api/admin/products" })
@@ -41,15 +45,16 @@ public class ProductController {
     private final StoreRepository storeRepository;
     private final S3Service s3Service;
     private final ObjectMapper objectMapper;
+    private final ProductService productService;
 
     @GetMapping
-    public ResponseEntity<List<Product>> getAllProducts() {
-        return ResponseEntity.ok(productRepository.findAll());
+    public ResponseEntity<List<ProductResponseDTO>> getAllProducts() {
+        return ResponseEntity.ok(productService.getAllProducts());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Product> getProductById(@PathVariable Long id) {
-        return productRepository.findById(id)
+    public ResponseEntity<ProductResponseDTO> getProductById(@PathVariable Long id) {
+        return productService.getProductById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -58,19 +63,8 @@ public class ProductController {
      * Create Product via JSON payload.
      */
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Product> createProductJson(@RequestBody Product product) {
-        if (StringUtils.hasText(product.getMainImageUrl())) {
-            if (product.getImages() == null || product.getImages().isEmpty()) {
-                ProductImage primaryImg = ProductImage.builder()
-                        .imageUrl(product.getMainImageUrl())
-                        .isPrimary(true)
-                        .product(product)
-                        .build();
-                product.getImages().add(primaryImg);
-            }
-        }
-        populateCategoryNames(product);
-        Product saved = productRepository.save(product);
+    public ResponseEntity<ProductResponseDTO> createProductJson(@RequestBody ProductRequestDTO product) {
+        ProductResponseDTO saved = productService.createProduct(product);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
@@ -205,7 +199,7 @@ public class ProductController {
 
             populateCategoryNames(product);
             Product saved = productRepository.save(product);
-            return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+            return ResponseEntity.status(HttpStatus.CREATED).body(ProductResponseDTO.fromEntity(saved));
         } catch (Exception e) {
             log.error("Failed to create product: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage(), "success", false));
@@ -216,46 +210,10 @@ public class ProductController {
      * Update Product via JSON payload.
      */
     @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Product> updateProductJson(@PathVariable Long id, @RequestBody Product productDetails) {
-        Optional<Product> pOpt = productRepository.findById(id);
-        if (pOpt.isPresent()) {
-            Product product = pOpt.get();
-            if (productDetails.getTitle() != null)
-                product.setTitle(productDetails.getTitle());
-            if (productDetails.getDescription() != null)
-                product.setDescription(productDetails.getDescription());
-            if (productDetails.getPrice() != null)
-                product.setPrice(productDetails.getPrice());
-            if (productDetails.getOriginalPrice() != null)
-                product.setOriginalPrice(productDetails.getOriginalPrice());
-            if (productDetails.getStock() != null)
-                product.setStock(productDetails.getStock());
-            if (productDetails.getUnit() != null)
-                product.setUnit(productDetails.getUnit());
-            if (productDetails.getCategoryId() != null)
-                product.setCategoryId(productDetails.getCategoryId());
-            if (productDetails.getCategoryName() != null)
-                product.setCategoryName(productDetails.getCategoryName());
-            if (productDetails.getSubcategoryId() != null)
-                product.setSubcategoryId(productDetails.getSubcategoryId());
-            if (productDetails.getSubcategoryName() != null)
-                product.setSubcategoryName(productDetails.getSubcategoryName());
-            if (productDetails.getStoreId() != null)
-                product.setStoreId(productDetails.getStoreId());
-            if (productDetails.getStoreName() != null)
-                product.setStoreName(productDetails.getStoreName());
-            if (productDetails.getMainImageUrl() != null)
-                product.setMainImageUrl(productDetails.getMainImageUrl());
-            if (productDetails.getTrending() != null)
-                product.setTrending(productDetails.getTrending());
-            if (productDetails.getActive() != null)
-                product.setActive(productDetails.getActive());
-
-            populateCategoryNames(product);
-            Product updated = productRepository.save(product);
-            return ResponseEntity.ok(updated);
-        }
-        return ResponseEntity.notFound().build();
+    public ResponseEntity<ProductResponseDTO> updateProductJson(@PathVariable Long id, @RequestBody ProductRequestDTO productDetails) {
+        return productService.updateProduct(id, productDetails)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
@@ -402,7 +360,7 @@ public class ProductController {
 
             populateCategoryNames(product);
             Product updated = productRepository.save(product);
-            return ResponseEntity.ok(updated);
+            return ResponseEntity.ok(ProductResponseDTO.fromEntity(updated));
         } catch (Exception e) {
             log.error("Failed to update product: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage(), "success", false));
@@ -498,21 +456,23 @@ public class ProductController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<List<Product>> searchProducts(@RequestParam String keyword) {
-        return ResponseEntity.ok(productRepository.findByTitleContainingIgnoreCase(keyword));
+    public ResponseEntity<List<ProductResponseDTO>> searchProducts(@RequestParam String keyword) {
+        return ResponseEntity.ok(productRepository.findByTitleContainingIgnoreCase(keyword).stream()
+                .map(ProductResponseDTO::fromEntity)
+                .collect(Collectors.toList()));
     }
 
     @GetMapping("/filter")
-    public ResponseEntity<List<Product>> filterProducts(@RequestParam(required = false) Long categoryId) {
-        if (categoryId != null) {
-            return ResponseEntity.ok(productRepository.findByCategoryId(categoryId));
-        }
-        return ResponseEntity.ok(productRepository.findAll());
+    public ResponseEntity<List<ProductResponseDTO>> filterProducts(@RequestParam(required = false) Long categoryId) {
+        List<Product> list = (categoryId != null) ? productRepository.findByCategoryId(categoryId) : productRepository.findAll();
+        return ResponseEntity.ok(list.stream().map(ProductResponseDTO::fromEntity).collect(Collectors.toList()));
     }
 
     @GetMapping("/trending")
-    public ResponseEntity<List<Product>> getTrendingProducts() {
-        return ResponseEntity.ok(productRepository.findByTrendingTrue());
+    public ResponseEntity<List<ProductResponseDTO>> getTrendingProducts() {
+        return ResponseEntity.ok(productRepository.findByTrendingTrue().stream()
+                .map(ProductResponseDTO::fromEntity)
+                .collect(Collectors.toList()));
     }
 
     // Product Images Endpoints (JSON)
@@ -650,12 +610,18 @@ public class ProductController {
             subcategoryRepository.findById(product.getSubcategoryId())
                     .ifPresent(subcategory -> product.setSubcategoryName(subcategory.getName()));
         }
-        if (product.getStoreId() != null && !StringUtils.hasText(product.getStoreName())) {
+        if (product.getStoreId() != null) {
             storeRepository.findById(product.getStoreId())
-                    .ifPresent(store -> product.setStoreName(store.getName()));
-        } else if (StringUtils.hasText(product.getStoreName()) && product.getStoreId() == null) {
+                    .ifPresent(store -> {
+                        product.setStore(store);
+                        product.setStoreName(store.getName());
+                    });
+        } else if (StringUtils.hasText(product.getStoreName())) {
             storeRepository.findByNameIgnoreCase(product.getStoreName().trim())
-                    .ifPresent(store -> product.setStoreId(store.getId()));
+                    .ifPresent(store -> {
+                        product.setStore(store);
+                        product.setStoreName(store.getName());
+                    });
         }
     }
 }

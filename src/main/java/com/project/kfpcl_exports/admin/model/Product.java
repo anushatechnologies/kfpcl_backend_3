@@ -43,18 +43,65 @@ public class Product {
 
     private String subcategoryName;
 
-    private Long storeId;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "store_id")
+    private Store store;
 
+    @Column(name = "store_name")
     private String storeName;
 
-    @com.fasterxml.jackson.annotation.JsonProperty("store")
-    public String getStore() {
+    @Transient
+    private Long storeId;
+
+    public Long getStoreId() {
+        if (store != null) {
+            return store.getId();
+        }
+        return storeId;
+    }
+
+    public void setStoreId(Long storeId) {
+        this.storeId = storeId;
+        if (this.store != null && this.store.getId() != null && !this.store.getId().equals(storeId)) {
+            this.store = null;
+        }
+    }
+
+    public String getStoreName() {
+        if (store != null && store.getName() != null) {
+            return store.getName();
+        }
         return storeName;
     }
 
-    public void setStore(String store) {
-        if (store != null && !store.isEmpty()) {
-            this.storeName = store;
+    public void setStoreName(String storeName) {
+        this.storeName = storeName;
+    }
+
+    public void setStore(Store store) {
+        this.store = store;
+        if (store != null) {
+            this.storeId = store.getId();
+            this.storeName = store.getName();
+        } else {
+            this.storeId = null;
+            this.storeName = null;
+        }
+    }
+
+    @com.fasterxml.jackson.annotation.JsonSetter("store")
+    public void setStoreFromJson(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node == null || node.isNull()) {
+            this.store = null;
+            this.storeId = null;
+            this.storeName = null;
+        } else if (node.isTextual()) {
+            this.storeName = node.asText();
+        } else if (node.isObject()) {
+            Store s = new Store();
+            if (node.has("id")) s.setId(node.get("id").asLong());
+            if (node.has("name")) s.setName(node.get("name").asText());
+            this.setStore(s);
         }
     }
 
