@@ -22,7 +22,14 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController("adminSubcategoryController")
-@RequestMapping({"/api/subcategories", "/api/admin/subcategories"})
+@RequestMapping({
+        "/api/subcategories",
+        "/api/admin/subcategories",
+        "/api/v1/admin/catalog/subcategories",
+        "/api/admin/catalog/subcategories",
+        "/api/v1/catalog/subcategories",
+        "/api/v1/admin/subcategories"
+})
 @RequiredArgsConstructor
 public class SubcategoryController {
 

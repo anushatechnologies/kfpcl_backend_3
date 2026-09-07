@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController("adminBannerController")
-@RequestMapping({"/api/banners", "/api/admin/banners"})
+@RequestMapping({"/api/banners", "/api/admin/banners", "/api/v1/admin/banners", "/api/v1/banners"})
 @RequiredArgsConstructor
 public class BannerController {
 

@@ -32,7 +32,14 @@ import com.project.kfpcl_exports.admin.dto.ProductResponseDTO;
 import com.project.kfpcl_exports.admin.service.ProductService;
 
 @RestController("adminProductController")
-@RequestMapping({ "/api/products", "/api/admin/products" })
+@RequestMapping({
+        "/api/products",
+        "/api/admin/products",
+        "/api/v1/admin/catalog/products",
+        "/api/admin/catalog/products",
+        "/api/v1/catalog/products",
+        "/api/v1/admin/products"
+})
 @RequiredArgsConstructor
 public class ProductController {
 

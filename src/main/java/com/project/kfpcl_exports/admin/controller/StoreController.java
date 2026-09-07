@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController
-@RequestMapping({"/api/stores", "/api/admin/stores"})
+@RequestMapping({"/api/stores", "/api/admin/stores", "/api/v1/admin/stores", "/api/v1/stores"})
 @RequiredArgsConstructor
 public class StoreController {
 

@@ -20,9 +20,17 @@ public class BuyerRfqResponseDto {
     private String rfqId;
     private String rfqCode;
     private ProductSummaryDto product;
+    private Long productId;
+    private String title;
+    private String productName;
+    private String buyerName;
+    private String buyerPhone;
     private String quantity;
+    private String unit;
     private String deliveryLocation;
+    private String subject;
     private String buyerMessage;
+    private String fileUrl;
     private RfqStatus status;
     private Long parentRfqId;
     private String parentRfqCode;
@@ -48,10 +56,16 @@ public class BuyerRfqResponseDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class RfqResponseSummaryDto {
+        private String quoteId;
         private Double quotedPrice;
+        private Double offeredPrice;
+        private Double totalAmount;
         private String availableQuantity;
         private String deliveryTime;
+        private String leadTime;
+        private String notes;
         private String responseMessage;
+        private String status;
         private LocalDateTime createdAt;
     }
 }

@@ -48,6 +48,18 @@ public class Rfq {
     @Column(name = "delivery_location", nullable = false, length = 255)
     private String deliveryLocation;
 
+    @Column(name = "buyer_name", length = 150)
+    private String buyerName;
+
+    @Column(name = "buyer_phone", length = 50)
+    private String buyerPhone;
+
+    @Column(name = "subject", length = 255)
+    private String subject;
+
+    @Column(name = "file_url", columnDefinition = "TEXT")
+    private String fileUrl;
+
     @Column(name = "buyer_message", length = 2000)
     private String buyerMessage;
 

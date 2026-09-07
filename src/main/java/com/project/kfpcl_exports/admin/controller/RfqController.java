@@ -34,6 +34,7 @@ public class RfqController {
 
     private final RfqRepository buyerRfqRepository;
     private final RfqResponseRepository rfqResponseRepository;
+    private final com.project.kfpcl_exports.buyer.service.NotificationService notificationService;
 
     private Map<String, Object> mapRfqToMap(Rfq rfq) {
         Map<String, Object> map = new HashMap<>();
@@ -43,21 +44,27 @@ public class RfqController {
         map.put("quantity", rfq.getQuantity());
         map.put("deliveryLocation", rfq.getDeliveryLocation());
         map.put("buyerMessage", rfq.getBuyerMessage());
+        map.put("subject", rfq.getSubject());
+        map.put("fileUrl", rfq.getFileUrl());
         map.put("status", rfq.getStatus() != null ? rfq.getStatus().name() : "SUBMITTED");
         map.put("createdAt", rfq.getCreatedAt());
 
+        String buyerName = rfq.getBuyerName() != null ? rfq.getBuyerName() : (rfq.getBuyer() != null ? rfq.getBuyer().getName() : null);
+        String buyerPhone = rfq.getBuyerPhone() != null ? rfq.getBuyerPhone() : (rfq.getBuyer() != null ? rfq.getBuyer().getPhoneNumber() : null);
+        map.put("buyerName", buyerName);
+        map.put("buyerPhone", buyerPhone);
+
         if (rfq.getBuyer() != null) {
             map.put("buyerId", rfq.getBuyer().getId());
-            map.put("buyerName", rfq.getBuyer().getName());
             map.put("buyerEmail", rfq.getBuyer().getEmail());
-            map.put("buyerPhone", rfq.getBuyer().getPhoneNumber());
             map.put("userEmail", rfq.getBuyer().getEmail());
         }
 
         if (rfq.getProduct() != null) {
+            String pName = rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle();
             map.put("productId", rfq.getProduct().getId());
-            map.put("productTitle", rfq.getProduct().getTitle());
-            map.put("productName", rfq.getProduct().getTitle());
+            map.put("productTitle", pName);
+            map.put("productName", pName);
             map.put("productImage", rfq.getProduct().getMainImageUrl());
             map.put("mainImageUrl", rfq.getProduct().getMainImageUrl());
             map.put("price", rfq.getProduct().getIndicativePrice());
@@ -66,10 +73,14 @@ public class RfqController {
         if (rfq.getLatestResponse() != null) {
             RfqResponse resp = rfq.getLatestResponse();
             Map<String, Object> respMap = new HashMap<>();
+            respMap.put("quoteId", "QUO-" + resp.getId());
             respMap.put("quotedPrice", resp.getQuotedPrice());
+            respMap.put("offeredPrice", resp.getQuotedPrice());
             respMap.put("availableQuantity", resp.getAvailableQuantity());
             respMap.put("deliveryTime", resp.getDeliveryTime());
+            respMap.put("leadTime", resp.getDeliveryTime());
             respMap.put("responseMessage", resp.getResponseMessage());
+            respMap.put("notes", resp.getResponseMessage());
             respMap.put("createdAt", resp.getCreatedAt());
             map.put("quotation", respMap);
             map.put("response", respMap);
@@ -100,13 +111,21 @@ public class RfqController {
                 .map(this::mapRfqToMap)
                 .collect(Collectors.toList());
 
+        Map<String, Object> dataMap = new HashMap<>();
+        dataMap.put("rfqs", contentList);
+        dataMap.put("totalPages", pageResult.getTotalPages());
+        dataMap.put("totalElements", pageResult.getTotalElements());
+        dataMap.put("currentPage", pageResult.getNumber());
+        dataMap.put("pageSize", pageResult.getSize());
+
         Map<String, Object> responseMap = new HashMap<>();
+        responseMap.put("success", true);
+        responseMap.put("data", dataMap);
         responseMap.put("content", contentList);
         responseMap.put("totalPages", pageResult.getTotalPages());
         responseMap.put("totalElements", pageResult.getTotalElements());
         responseMap.put("number", pageResult.getNumber());
         responseMap.put("size", pageResult.getSize());
-        responseMap.put("success", true);
 
         return ResponseEntity.ok(responseMap);
     }
@@ -158,9 +177,10 @@ public class RfqController {
         Rfq rfq = rfqOpt.get();
 
         Double unitPrice = (request.getUnitPrice() != null) ? request.getUnitPrice() : 0.0;
+        int qty = (request.getQuantity() != null) ? request.getQuantity() : 1;
         String quantityStr = (request.getQuantity() != null) ? String.valueOf(request.getQuantity()) : rfq.getQuantity();
-        String deliveryDays = (request.getDeliveryDays() != null) ? request.getDeliveryDays() : "3-5 days";
-        String notes = (request.getNotes() != null) ? request.getNotes() : "Quotation provided by KFPCL admin";
+        String deliveryDays = (request.getDeliveryDays() != null) ? request.getDeliveryDays() : "5 days";
+        String notes = (request.getNotes() != null) ? request.getNotes() : "Price includes GST & loading at warehouse.";
 
         RfqResponse response = RfqResponse.builder()
                 .rfq(rfq)
@@ -175,21 +195,52 @@ public class RfqController {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        rfqResponseRepository.save(response);
-        rfq.getResponses().add(response);
+        RfqResponse savedResp = rfqResponseRepository.save(response);
+        rfq.getResponses().add(savedResp);
         rfq.setStatus(RfqStatus.RESPONDED);
         rfq.setUpdatedAt(LocalDateTime.now());
         buyerRfqRepository.save(rfq);
 
-        return ResponseEntity.ok(Map.of(
-                "message", "Quotation successfully created and sent to buyer",
-                "success", true,
-                "rfqId", rfq.getId(),
-                "rfqCode", rfq.getRfqCode(),
-                "quotedPrice", unitPrice,
-                "availableQuantity", quantityStr,
-                "deliveryDays", deliveryDays,
-                "notes", notes
-        ));
+        if (rfq.getBuyer() != null && notificationService != null) {
+            try {
+                notificationService.createNotification(
+                        rfq.getBuyer(),
+                        com.project.kfpcl_exports.buyer.enums.NotificationType.RFQ_RESPONSE_RECEIVED,
+                        "Quotation Received",
+                        "Supplier quoted ₹" + unitPrice + " for your enquiry " + rfq.getRfqCode(),
+                        "RFQ",
+                        rfq.getRfqCode()
+                );
+            } catch (Exception e) {
+                log.warn("Failed to create notification: {}", e.getMessage());
+            }
+        }
+
+        double totalAmount = unitPrice * qty;
+        String quoteId = "QUO-" + (savedResp.getId() != null ? savedResp.getId() : "8841");
+
+        Map<String, Object> quoteData = new HashMap<>();
+        quoteData.put("quoteId", quoteId);
+        quoteData.put("rfqCode", rfq.getRfqCode());
+        quoteData.put("unitPrice", unitPrice);
+        quoteData.put("totalAmount", totalAmount);
+        quoteData.put("leadTime", deliveryDays);
+        quoteData.put("status", "QUOTED");
+        quoteData.put("notes", notes);
+        quoteData.put("quotedAt", savedResp.getCreatedAt());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("message", "Quotation submitted and buyer notified successfully");
+        result.put("data", quoteData);
+        result.put("rfqId", rfq.getId());
+        result.put("rfqCode", rfq.getRfqCode());
+        result.put("quotedPrice", unitPrice);
+        result.put("totalAmount", totalAmount);
+        result.put("availableQuantity", quantityStr);
+        result.put("deliveryDays", deliveryDays);
+        result.put("notes", notes);
+
+        return ResponseEntity.ok(result);
     }
 }

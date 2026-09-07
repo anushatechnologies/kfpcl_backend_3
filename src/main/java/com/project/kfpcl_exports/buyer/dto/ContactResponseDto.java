@@ -11,7 +11,12 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ContactResponseDto {
 
+    private String supplierName;
+    private String contactPerson;
     private String contactName;
+    private String phone;
     private String contactPhone;
+    private String email;
     private String contactEmail;
+    private String dispatchWarehouse;
 }

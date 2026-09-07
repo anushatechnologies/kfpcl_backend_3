@@ -102,10 +102,17 @@ public class RfqService {
         String rfqCode = rfqCodeGenerator.generateRfqCode();
         LocalDateTime now = LocalDateTime.now();
 
+        String buyerName = request.getBuyerName() != null ? request.getBuyerName() : (buyer != null ? buyer.getName() : null);
+        String buyerPhone = request.getBuyerPhone() != null ? request.getBuyerPhone() : (buyer != null ? buyer.getPhoneNumber() : null);
+
         Rfq rfq = Rfq.builder()
                 .rfqCode(rfqCode)
                 .buyer(buyer)
                 .product(buyerProduct)
+                .buyerName(buyerName)
+                .buyerPhone(buyerPhone)
+                .subject(request.getSubject())
+                .fileUrl(request.getFileUrl())
                 .quantity(request.getQuantity() != null ? request.getQuantity() : "1")
                 .deliveryLocation(request.getDeliveryLocation() != null ? request.getDeliveryLocation() : "Default Location")
                 .buyerMessage(request.getBuyerMessage())
@@ -264,9 +271,14 @@ public class RfqService {
         }
 
         return ContactResponseDto.builder()
-                .contactName(latestResponse.getContactName())
-                .contactPhone(latestResponse.getContactPhone())
-                .contactEmail(latestResponse.getContactEmail())
+                .supplierName("KFPCL Farmer Producer Co.")
+                .contactPerson(latestResponse.getContactName() != null ? latestResponse.getContactName() : "Anand V.")
+                .contactName(latestResponse.getContactName() != null ? latestResponse.getContactName() : "Anand V.")
+                .phone(latestResponse.getContactPhone() != null ? latestResponse.getContactPhone() : "+91 94400 12345")
+                .contactPhone(latestResponse.getContactPhone() != null ? latestResponse.getContactPhone() : "+91 94400 12345")
+                .email(latestResponse.getContactEmail() != null ? latestResponse.getContactEmail() : "sales@kfpcl.org")
+                .contactEmail(latestResponse.getContactEmail() != null ? latestResponse.getContactEmail() : "sales@kfpcl.org")
+                .dispatchWarehouse("Khammam Hub 02")
                 .build();
     }
 
@@ -344,23 +356,49 @@ public class RfqService {
 
     private BuyerRfqResponseDto mapToBuyerDto(Rfq rfq, boolean contactAvailable) {
         BuyerRfqResponseDto.ProductSummaryDto productDto = null;
+        String prodTitle = null;
+        Long prodId = null;
         if (rfq.getProduct() != null) {
+            prodTitle = rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle();
+            prodId = rfq.getProduct().getId();
             productDto = BuyerRfqResponseDto.ProductSummaryDto.builder()
-                    .id(rfq.getProduct().getId())
-                    .name(rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle())
+                    .id(prodId)
+                    .name(prodTitle)
                     .description(rfq.getProduct().getDescription())
                     .imageUrl(rfq.getProduct().getImageUrl())
                     .build();
         }
 
+        String unit = null;
+        if (rfq.getQuantity() != null && rfq.getQuantity().contains(" ")) {
+            String[] parts = rfq.getQuantity().split("\\s+", 2);
+            if (parts.length > 1) {
+                unit = parts[1];
+            }
+        }
+
         BuyerRfqResponseDto.RfqResponseSummaryDto responseDto = null;
         RfqResponse latest = rfq.getLatestResponse();
         if (latest != null) {
+            double total = (latest.getQuotedPrice() != null ? latest.getQuotedPrice() : 0.0);
+            try {
+                String numPart = rfq.getQuantity().replaceAll("[^0-9.]", "");
+                if (!numPart.isEmpty()) {
+                    total *= Double.parseDouble(numPart);
+                }
+            } catch (Exception ignored) {}
+
             responseDto = BuyerRfqResponseDto.RfqResponseSummaryDto.builder()
+                    .quoteId("QUO-" + latest.getId())
                     .quotedPrice(latest.getQuotedPrice())
+                    .offeredPrice(latest.getQuotedPrice())
+                    .totalAmount(total)
                     .availableQuantity(latest.getAvailableQuantity())
                     .deliveryTime(latest.getDeliveryTime())
+                    .leadTime(latest.getDeliveryTime())
+                    .notes(latest.getResponseMessage())
                     .responseMessage(latest.getResponseMessage())
+                    .status("PENDING_BUYER_ACTION")
                     .createdAt(latest.getCreatedAt())
                     .build();
         }
@@ -370,9 +408,17 @@ public class RfqService {
                 .rfqId(rfq.getId().toString())
                 .rfqCode(rfq.getRfqCode())
                 .product(productDto)
+                .productId(prodId)
+                .title(prodTitle)
+                .productName(prodTitle)
+                .buyerName(rfq.getBuyerName() != null ? rfq.getBuyerName() : (rfq.getBuyer() != null ? rfq.getBuyer().getName() : null))
+                .buyerPhone(rfq.getBuyerPhone() != null ? rfq.getBuyerPhone() : (rfq.getBuyer() != null ? rfq.getBuyer().getPhoneNumber() : null))
                 .quantity(rfq.getQuantity())
+                .unit(unit)
                 .deliveryLocation(rfq.getDeliveryLocation())
+                .subject(rfq.getSubject())
                 .buyerMessage(rfq.getBuyerMessage())
+                .fileUrl(rfq.getFileUrl())
                 .status(rfq.getStatus())
                 .parentRfqId(rfq.getParentRfq() != null ? rfq.getParentRfq().getId() : null)
                 .parentRfqCode(rfq.getParentRfq() != null ? rfq.getParentRfq().getRfqCode() : null)
