@@ -53,7 +53,7 @@ public class AuthDTOs {
 
     public static class SendOtpRequest {
         @NotBlank(message = "Phone number is required")
-        @Pattern(regexp = "^[0-9]{10,15}$", message = "Phone number must be valid 10 to 15 digits")
+        @Pattern(regexp = "^[+]?[0-9\\s\\-]{10,20}$", message = "Phone number must be valid 10 to 15 digits")
         private String phoneNumber;
 
         public SendOtpRequest() {}
