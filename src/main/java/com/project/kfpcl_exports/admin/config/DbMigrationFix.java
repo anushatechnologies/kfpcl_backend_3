@@ -45,6 +45,7 @@ public class DbMigrationFix implements CommandLineRunner {
         ensureAutoIncrement("notifications", "id");
         ensureAutoIncrement("contact_leads", "id");
         ensureAutoIncrement("policies", "id");
+        makeColumnNullable("users", "enabled", "BOOLEAN DEFAULT TRUE");
     }
 
     private void cleanupInvalidColumnData() {
@@ -53,6 +54,7 @@ public class DbMigrationFix implements CommandLineRunner {
             jdbcTemplate.execute("UPDATE products SET subcategory_id = NULL WHERE CAST(subcategory_id AS CHAR) REGEXP '[^0-9]'");
             jdbcTemplate.execute("UPDATE products SET category_id = NULL WHERE CAST(category_id AS CHAR) REGEXP '[^0-9]'");
             jdbcTemplate.execute("UPDATE buyer_products SET numeric_price = 150.00, indicative_price = '150.00', original_price = 180.00 WHERE numeric_price IS NULL");
+            jdbcTemplate.execute("UPDATE users SET enabled = TRUE WHERE enabled IS NULL");
             jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
         } catch (Exception e) {
             log.debug("Data cleanup notice: {}", e.getMessage());

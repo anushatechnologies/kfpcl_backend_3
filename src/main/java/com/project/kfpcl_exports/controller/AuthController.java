@@ -57,6 +57,17 @@ public class AuthController {
         return ResponseEntity.ok(authService.firebaseLogin(request));
     }
 
+    @GetMapping("/firebase-status")
+    public ResponseEntity<java.util.Map<String, Object>> firebaseStatus() {
+        boolean initialized = !com.google.firebase.FirebaseApp.getApps().isEmpty();
+        String error = com.project.kfpcl_exports.config.FirebaseConfig.getLastError();
+        return ResponseEntity.ok(java.util.Map.of(
+                "initialized", initialized,
+                "appsCount", com.google.firebase.FirebaseApp.getApps().size(),
+                "error", error != null ? error : "none"
+        ));
+    }
+
     @PostMapping("/refresh")
     public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         return ResponseEntity.ok(authService.refreshToken(request));

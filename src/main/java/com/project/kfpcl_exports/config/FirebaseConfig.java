@@ -16,6 +16,12 @@ import java.nio.charset.StandardCharsets;
 @Configuration
 public class FirebaseConfig {
 
+    private static String lastError = null;
+
+    public static String getLastError() {
+        return lastError;
+    }
+
     @PostConstruct
     public void initializeFirebase() {
         try {
@@ -50,10 +56,12 @@ public class FirebaseConfig {
                             .build();
 
                     FirebaseApp.initializeApp(options);
+                    lastError = null;
                     System.out.println("[FIREBASE CONFIG] FirebaseApp initialized successfully for project: " + node.path("project_id").asText());
                 }
             }
         } catch (Exception e) {
+            lastError = e.getMessage();
             System.err.println("[FIREBASE CONFIG ERROR] Failed to initialize FirebaseApp: " + e.getMessage());
             e.printStackTrace();
         }

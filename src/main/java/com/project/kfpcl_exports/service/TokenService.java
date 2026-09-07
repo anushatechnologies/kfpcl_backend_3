@@ -60,7 +60,11 @@ public class TokenService {
             verificationTokens.remove(token);
             return false;
         }
-        boolean matches = data.getPhoneNumber().equals(phoneNumber);
+        String p1 = data.getPhoneNumber().replaceAll("[^0-9]", "");
+        String p2 = phoneNumber.replaceAll("[^0-9]", "");
+        if (p1.length() > 10) p1 = p1.substring(p1.length() - 10);
+        if (p2.length() > 10) p2 = p2.substring(p2.length() - 10);
+        boolean matches = data.getPhoneNumber().equals(phoneNumber) || (!p1.isEmpty() && p1.equals(p2));
         if (matches) {
             verificationTokens.remove(token); // One-time use
         }

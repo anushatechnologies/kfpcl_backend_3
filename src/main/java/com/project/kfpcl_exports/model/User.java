@@ -41,6 +41,9 @@ public class User {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Column(name = "enabled", nullable = false)
+    private Boolean enabled = true;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -54,7 +57,7 @@ public class User {
 
     public User(Long id, String phoneNumber, String fullName, String email, String companyName,
                 String businessType, String state, String city, Boolean isVerified, Boolean isActive,
-                LocalDateTime createdAt, LocalDateTime updatedAt) {
+                Boolean enabled, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.phoneNumber = phoneNumber;
         this.fullName = fullName;
@@ -65,6 +68,7 @@ public class User {
         this.city = city;
         this.isVerified = isVerified != null ? isVerified : false;
         this.isActive = isActive != null ? isActive : true;
+        this.enabled = enabled != null ? enabled : true;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -99,6 +103,9 @@ public class User {
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
+    public Boolean getEnabled() { return enabled; }
+    public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
@@ -120,6 +127,7 @@ public class User {
         private String city;
         private Boolean isVerified = false;
         private Boolean isActive = true;
+        private Boolean enabled = true;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
 
@@ -133,11 +141,12 @@ public class User {
         public UserBuilder city(String city) { this.city = city; return this; }
         public UserBuilder isVerified(Boolean isVerified) { this.isVerified = isVerified; return this; }
         public UserBuilder isActive(Boolean isActive) { this.isActive = isActive; return this; }
+        public UserBuilder enabled(Boolean enabled) { this.enabled = enabled; return this; }
         public UserBuilder createdAt(LocalDateTime createdAt) { this.createdAt = createdAt; return this; }
         public UserBuilder updatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; return this; }
 
         public User build() {
-            return new User(id, phoneNumber, fullName, email, companyName, businessType, state, city, isVerified, isActive, createdAt, updatedAt);
+            return new User(id, phoneNumber, fullName, email, companyName, businessType, state, city, isVerified, isActive, enabled, createdAt, updatedAt);
         }
     }
 }
