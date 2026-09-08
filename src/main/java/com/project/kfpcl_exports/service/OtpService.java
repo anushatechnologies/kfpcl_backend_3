@@ -53,7 +53,7 @@ public class OtpService {
         synchronized (timestamps) {
             timestamps.removeIf(t -> t.isBefore(now.minusSeconds(RATE_LIMIT_WINDOW_SECONDS)));
             if (timestamps.size() >= RATE_LIMIT_MAX_REQUESTS) {
-                throw new IllegalStateException("Too many OTP requests. Maximum 3 requests allowed per 10 minutes.");
+                throw new IllegalStateException("Too many OTP requests. Maximum " + RATE_LIMIT_MAX_REQUESTS + " requests allowed per 10 minutes.");
             }
         }
 

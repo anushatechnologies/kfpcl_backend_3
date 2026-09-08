@@ -23,7 +23,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<GenericResponse> handleIllegalState(IllegalStateException ex) {
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+        String msg = ex.getMessage() != null ? ex.getMessage() : "";
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        if (msg.contains("Too many OTP requests") || msg.contains("Please wait")) {
+            status = HttpStatus.TOO_MANY_REQUESTS;
+        } else if (msg.contains("already registered") || msg.contains("already exists")) {
+            status = HttpStatus.CONFLICT;
+        }
+        return ResponseEntity.status(status).body(
                 GenericResponse.builder().success(false).message(ex.getMessage()).build()
         );
     }
