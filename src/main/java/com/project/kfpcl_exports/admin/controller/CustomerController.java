@@ -21,15 +21,18 @@ public class CustomerController {
 
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
+    private final com.project.kfpcl_exports.buyer.repository.UserRepository buyerUserRepository;
     private final JdbcTemplate jdbcTemplate;
 
     public CustomerController(
             CustomerRepository customerRepository,
             @Qualifier("mainUserRepository") UserRepository userRepository,
+            @Qualifier("buyerUserRepository") com.project.kfpcl_exports.buyer.repository.UserRepository buyerUserRepository,
             JdbcTemplate jdbcTemplate
     ) {
         this.customerRepository = customerRepository;
         this.userRepository = userRepository;
+        this.buyerUserRepository = buyerUserRepository;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -45,12 +48,19 @@ public class CustomerController {
                 .map(c -> c.getPhone() != null ? c.getPhone().replaceAll("[^0-9]", "") : "")
                 .filter(p -> !p.isEmpty())
                 .collect(Collectors.toSet());
+        Set<String> existingEmails = result.stream()
+                .map(c -> c.getEmail() != null ? c.getEmail().trim().toLowerCase() : "")
+                .filter(e -> !e.isEmpty())
+                .collect(Collectors.toSet());
 
-        // Include registered buyers from users table
+        // 1. Include registered buyers from users table
         List<User> users = userRepository.findAll();
         for (User u : users) {
             String cleanPhone = u.getPhoneNumber() != null ? u.getPhoneNumber().replaceAll("[^0-9]", "") : "";
             if (!cleanPhone.isEmpty() && existingPhones.contains(cleanPhone)) {
+                continue;
+            }
+            if (u.getEmail() != null && !u.getEmail().isBlank() && existingEmails.contains(u.getEmail().trim().toLowerCase())) {
                 continue;
             }
             Customer c = Customer.builder()
@@ -64,6 +74,86 @@ public class CustomerController {
                     .createdAt(u.getCreatedAt())
                     .build();
             result.add(c);
+            if (!cleanPhone.isEmpty()) existingPhones.add(cleanPhone);
+            if (u.getEmail() != null && !u.getEmail().isBlank()) existingEmails.add(u.getEmail().trim().toLowerCase());
+        }
+
+        // 2. Include registered buyers from buyer_users table
+        try {
+            List<com.project.kfpcl_exports.buyer.model.User> buyerUsers = buyerUserRepository.findAll();
+            for (com.project.kfpcl_exports.buyer.model.User bu : buyerUsers) {
+                String buPhone = bu.getPhoneNumber();
+                String cleanPhone = buPhone != null ? buPhone.replaceAll("[^0-9]", "") : "";
+                if (cleanPhone.length() > 10) {
+                    cleanPhone = cleanPhone.substring(cleanPhone.length() - 10);
+                }
+                String buEmail = bu.getEmail() != null ? bu.getEmail().trim().toLowerCase() : "";
+
+                if (cleanPhone.isEmpty() && !buEmail.isEmpty()) {
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d{10}").matcher(buEmail);
+                    if (m.find()) cleanPhone = m.group();
+                }
+                if (cleanPhone.isEmpty() && bu.getName() != null) {
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d{10}").matcher(bu.getName());
+                    if (m.find()) cleanPhone = m.group();
+                }
+
+                if (!cleanPhone.isEmpty() && existingPhones.contains(cleanPhone)) {
+                    continue;
+                }
+                if (!buEmail.isEmpty() && existingEmails.contains(buEmail)) {
+                    continue;
+                }
+
+                Long customerId = null;
+                Optional<User> uOpt = Optional.empty();
+                if (!cleanPhone.isEmpty()) {
+                    uOpt = userRepository.findByPhoneNumber(cleanPhone);
+                    if (uOpt.isEmpty()) uOpt = userRepository.findByPhoneNumber("+91" + cleanPhone);
+                }
+                if (uOpt.isEmpty() && !buEmail.isEmpty()) {
+                    uOpt = userRepository.findByEmail(buEmail);
+                }
+
+                if (uOpt.isPresent()) {
+                    customerId = uOpt.get().getId();
+                } else {
+                    try {
+                        User nu = new User();
+                        nu.setPhoneNumber(!cleanPhone.isEmpty() ? cleanPhone : "9" + String.format("%09d", Math.abs((long) bu.getId().hashCode() % 1000000000L)));
+                        nu.setFullName(bu.getName() != null && !bu.getName().isBlank() ? bu.getName() : "Buyer " + (!cleanPhone.isEmpty() ? cleanPhone : ""));
+                        nu.setEmail(bu.getEmail());
+                        nu.setCompanyName("KFPCL Buyer");
+                        nu.setBusinessType("Buyer");
+                        nu.setState("India");
+                        nu.setCity("India");
+                        nu.setIsActive(bu.isEnabled());
+                        nu.setEnabled(bu.isEnabled());
+                        nu.setIsVerified(true);
+                        nu.setRole("ROLE_BUYER");
+                        User saved = userRepository.save(nu);
+                        customerId = saved.getId();
+                    } catch (Exception ex) {
+                        customerId = (long) Math.abs(bu.getId().hashCode());
+                    }
+                }
+
+                Customer c = Customer.builder()
+                        .id(customerId)
+                        .name(bu.getName() != null && !bu.getName().isBlank() ? bu.getName() : "Buyer " + cleanPhone)
+                        .email(bu.getEmail() != null ? bu.getEmail() : "")
+                        .phone(!cleanPhone.isEmpty() ? cleanPhone : bu.getPhoneNumber())
+                        .companyName("KFPCL Buyer")
+                        .country("India")
+                        .status(bu.isEnabled() ? "ACTIVE" : "INACTIVE")
+                        .createdAt(bu.getCreatedAt() != null ? bu.getCreatedAt() : java.time.LocalDateTime.now())
+                        .build();
+                result.add(c);
+                if (!cleanPhone.isEmpty()) existingPhones.add(cleanPhone);
+                if (!buEmail.isEmpty()) existingEmails.add(buEmail);
+            }
+        } catch (Exception e) {
+            log.warn("Notice while querying buyer_users: {}", e.getMessage());
         }
 
         // Apply search filter if present
@@ -250,11 +340,32 @@ public class CustomerController {
             // 6. Delete from buyer_users if exists
             try {
                 jdbcTemplate.update("DELETE FROM buyer_users WHERE id = ?", idStr);
+                userRepository.findById(id).ifPresent(u -> {
+                    String cleanPhone = u.getPhoneNumber() != null ? u.getPhoneNumber().replaceAll("[^0-9]", "") : "";
+                    if (cleanPhone.length() > 10) cleanPhone = cleanPhone.substring(cleanPhone.length() - 10);
+                    if (!cleanPhone.isEmpty()) {
+                        jdbcTemplate.update("DELETE FROM buyer_users WHERE phone_number = ? OR phone_number LIKE ? OR email LIKE ?", cleanPhone, "%" + cleanPhone, "%" + cleanPhone + "%");
+                    }
+                    if (u.getEmail() != null && !u.getEmail().isBlank()) {
+                        jdbcTemplate.update("DELETE FROM buyer_users WHERE email = ?", u.getEmail());
+                    }
+                });
             } catch (Exception ignored) {}
 
             userRepository.deleteById(id);
             return ResponseEntity.ok(Map.of("message", "Customer deleted", "success", true));
         }
+
+        // 7. Check if id matches any buyer_users synthetic ID
+        try {
+            for (com.project.kfpcl_exports.buyer.model.User bu : buyerUserRepository.findAll()) {
+                if (bu.getId() != null && Math.abs((long) bu.getId().hashCode()) == id) {
+                    buyerUserRepository.deleteById(bu.getId());
+                    return ResponseEntity.ok(Map.of("message", "Customer deleted", "success", true));
+                }
+            }
+        } catch (Exception ignored) {}
+
         return ResponseEntity.notFound().build();
     }
 }

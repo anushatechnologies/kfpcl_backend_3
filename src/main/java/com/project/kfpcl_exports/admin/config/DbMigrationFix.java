@@ -48,6 +48,10 @@ public class DbMigrationFix implements CommandLineRunner {
         makeColumnNullable("users", "enabled", "BOOLEAN DEFAULT TRUE");
         makeColumnNullable("users", "password", "VARCHAR(255)");
         makeColumnNullable("users", "role", "VARCHAR(50) DEFAULT 'ROLE_BUYER'");
+        makeColumnNullable("users", "company_name", "VARCHAR(150) DEFAULT 'KFPCL Buyer'");
+        makeColumnNullable("users", "business_type", "VARCHAR(50) DEFAULT 'Buyer'");
+        makeColumnNullable("users", "state", "VARCHAR(80) DEFAULT 'India'");
+        makeColumnNullable("users", "city", "VARCHAR(80) DEFAULT 'India'");
 
         // 6. Fix buyer_rfqs.buyer_id to VARCHAR(64) to allow storing UUID string without truncation
         dropForeignKeyOnColumn("buyer_rfqs", "buyer_id");
@@ -92,6 +96,24 @@ public class DbMigrationFix implements CommandLineRunner {
             );
         } catch (Exception e) {
             log.debug("Notice on buyer_users phone backfill: {}", e.getMessage());
+        }
+
+        // 9. Sync buyer_users into users table so Admin Panel and Authentication have unified data
+        try {
+            jdbcTemplate.execute(
+                "INSERT INTO users (phone_number, full_name, email, company_name, business_type, state, city, is_verified, is_active, enabled, role, created_at, updated_at) " +
+                "SELECT " +
+                "  b.phone_number, " +
+                "  COALESCE(NULLIF(b.name, ''), 'Buyer'), " +
+                "  b.email, " +
+                "  'KFPCL Buyer', 'Buyer', 'India', 'India', 1, 1, 1, 'ROLE_BUYER', " +
+                "  COALESCE(b.created_at, NOW()), NOW() " +
+                "FROM buyer_users b " +
+                "WHERE b.phone_number IS NOT NULL AND b.phone_number != '' " +
+                "  AND NOT EXISTS (SELECT 1 FROM users u WHERE u.phone_number = b.phone_number OR (b.email IS NOT NULL AND b.email != '' AND u.email = b.email))"
+            );
+        } catch (Exception e) {
+            log.debug("Notice on buyer_users sync to users: {}", e.getMessage());
         }
     }
 
