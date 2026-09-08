@@ -48,6 +48,10 @@ public class DbMigrationFix implements CommandLineRunner {
         makeColumnNullable("users", "enabled", "BOOLEAN DEFAULT TRUE");
         makeColumnNullable("users", "password", "VARCHAR(255)");
         makeColumnNullable("users", "role", "VARCHAR(50) DEFAULT 'ROLE_BUYER'");
+
+        // 6. Fix buyer_rfqs.buyer_id to VARCHAR(64) to allow storing UUID string without truncation
+        dropForeignKeyOnColumn("buyer_rfqs", "buyer_id");
+        modifyColumnType("buyer_rfqs", "buyer_id", "VARCHAR(64)");
     }
 
     private void cleanupInvalidColumnData() {
@@ -120,5 +124,41 @@ public class DbMigrationFix implements CommandLineRunner {
         } catch (Exception e) {
             log.debug("Could not query foreign keys for {} referencing {}: {}", tableName, referencedTable, e.getMessage());
         }
+    }
+
+    private void dropForeignKeyOnColumn(String tableName, String columnName) {
+        try {
+            java.util.List<String> fkNames = jdbcTemplate.queryForList(
+                    "SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE " +
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL",
+                    String.class,
+                    tableName,
+                    columnName
+            );
+            for (String fk : fkNames) {
+                try {
+                    jdbcTemplate.execute("ALTER TABLE " + tableName + " DROP FOREIGN KEY " + fk);
+                    log.info("Successfully dropped foreign key {} from {}.{}", fk, tableName, columnName);
+                } catch (Exception ex) {
+                    log.warn("Could not drop foreign key {} from {}.{}: {}", fk, tableName, columnName, ex.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not query foreign keys for {}.{}: {}", tableName, columnName, e.getMessage());
+        }
+    }
+
+    private void modifyColumnType(String tableName, String columnName, String columnType) {
+        jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) conn -> {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("SET FOREIGN_KEY_CHECKS = 0");
+                stmt.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnName + " " + columnType);
+                stmt.execute("SET FOREIGN_KEY_CHECKS = 1");
+                log.info("Successfully modified {}.{} to {}", tableName, columnName, columnType);
+            } catch (Exception e) {
+                log.warn("Could not modify {}.{} to {}: {}", tableName, columnName, columnType, e.getMessage());
+            }
+            return null;
+        });
     }
 }

@@ -35,6 +35,19 @@ public class BuyerAuthHelper {
      * Resolves the authenticated Buyer from plain request headers (no JWT).
      */
     public User resolveAuthenticatedBuyer(UserDetails userDetails, HttpServletRequest request) {
+        // 0. Check SecurityContextHolder for authenticated UserPrincipal (JWT authentication)
+        try {
+            org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getPrincipal() instanceof com.project.kfpcl_exports.security.UserPrincipal principal) {
+                if (principal.getPhoneNumber() != null && !principal.getPhoneNumber().isBlank()) {
+                    return resolveFromIdentifier(principal.getPhoneNumber());
+                }
+                if (principal.getUserId() != null) {
+                    return resolveFromIdentifier(String.valueOf(principal.getUserId()));
+                }
+            }
+        } catch (Exception ignored) {}
+
         if (request != null) {
             // 1. X-User-Email header
             String email = request.getHeader("X-User-Email");

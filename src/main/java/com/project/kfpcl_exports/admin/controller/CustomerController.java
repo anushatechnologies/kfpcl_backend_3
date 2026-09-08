@@ -2,29 +2,77 @@ package com.project.kfpcl_exports.admin.controller;
 
 import com.project.kfpcl_exports.admin.model.Customer;
 import com.project.kfpcl_exports.admin.repository.CustomerRepository;
-import lombok.RequiredArgsConstructor;
+import com.project.kfpcl_exports.model.User;
+import com.project.kfpcl_exports.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin/customers")
-@RequiredArgsConstructor
 public class CustomerController {
 
     private final CustomerRepository customerRepository;
+    private final UserRepository userRepository;
+
+    public CustomerController(
+            CustomerRepository customerRepository,
+            @Qualifier("mainUserRepository") UserRepository userRepository
+    ) {
+        this.customerRepository = customerRepository;
+        this.userRepository = userRepository;
+    }
 
     @GetMapping
     public ResponseEntity<List<Customer>> getAllCustomers() {
-        return ResponseEntity.ok(customerRepository.findAll());
+        List<Customer> result = new ArrayList<>(customerRepository.findAll());
+        Set<String> existingPhones = result.stream()
+                .map(c -> c.getPhone() != null ? c.getPhone().replaceAll("[^0-9]", "") : "")
+                .filter(p -> !p.isEmpty())
+                .collect(Collectors.toSet());
+
+        // Include registered buyers from users table
+        List<User> users = userRepository.findAll();
+        for (User u : users) {
+            String cleanPhone = u.getPhoneNumber() != null ? u.getPhoneNumber().replaceAll("[^0-9]", "") : "";
+            if (!cleanPhone.isEmpty() && existingPhones.contains(cleanPhone)) {
+                continue;
+            }
+            Customer c = Customer.builder()
+                    .id(u.getId())
+                    .name(u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : "Buyer " + cleanPhone)
+                    .email(u.getEmail() != null ? u.getEmail() : "")
+                    .phone(u.getPhoneNumber())
+                    .companyName(u.getCompanyName() != null ? u.getCompanyName() : "KFPCL Buyer")
+                    .country(u.getCity() != null && !u.getCity().isBlank() ? u.getCity() + ", " + (u.getState() != null ? u.getState() : "India") : "India")
+                    .status(Boolean.TRUE.equals(u.getIsActive()) ? "ACTIVE" : "INACTIVE")
+                    .createdAt(u.getCreatedAt())
+                    .build();
+            result.add(c);
+        }
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Customer> getCustomerById(@PathVariable Long id) {
-        return customerRepository.findById(id)
+        Optional<Customer> cOpt = customerRepository.findById(id);
+        if (cOpt.isPresent()) {
+            return ResponseEntity.ok(cOpt.get());
+        }
+        return userRepository.findById(id)
+                .map(u -> Customer.builder()
+                        .id(u.getId())
+                        .name(u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : "Buyer " + u.getPhoneNumber())
+                        .email(u.getEmail() != null ? u.getEmail() : "")
+                        .phone(u.getPhoneNumber())
+                        .companyName(u.getCompanyName() != null ? u.getCompanyName() : "KFPCL Buyer")
+                        .country(u.getCity() != null && !u.getCity().isBlank() ? u.getCity() + ", " + (u.getState() != null ? u.getState() : "India") : "India")
+                        .status(Boolean.TRUE.equals(u.getIsActive()) ? "ACTIVE" : "INACTIVE")
+                        .createdAt(u.getCreatedAt())
+                        .build())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -43,19 +91,59 @@ public class CustomerController {
             Customer updated = customerRepository.save(c);
             return ResponseEntity.ok(updated);
         }
+
+        Optional<User> uOpt = userRepository.findById(id);
+        if (uOpt.isPresent()) {
+            User u = uOpt.get();
+            if (customerDetails.getName() != null) u.setFullName(customerDetails.getName());
+            if (customerDetails.getEmail() != null) u.setEmail(customerDetails.getEmail());
+            if (customerDetails.getPhone() != null) u.setPhoneNumber(customerDetails.getPhone());
+            if (customerDetails.getCompanyName() != null) u.setCompanyName(customerDetails.getCompanyName());
+            if (customerDetails.getStatus() != null) u.setIsActive("ACTIVE".equalsIgnoreCase(customerDetails.getStatus()));
+            User updatedUser = userRepository.save(u);
+            return ResponseEntity.ok(Customer.builder()
+                    .id(updatedUser.getId())
+                    .name(updatedUser.getFullName())
+                    .email(updatedUser.getEmail())
+                    .phone(updatedUser.getPhoneNumber())
+                    .companyName(updatedUser.getCompanyName())
+                    .country(updatedUser.getCity() != null ? updatedUser.getCity() + ", " + updatedUser.getState() : "India")
+                    .status(Boolean.TRUE.equals(updatedUser.getIsActive()) ? "ACTIVE" : "INACTIVE")
+                    .createdAt(updatedUser.getCreatedAt())
+                    .build());
+        }
+
         return ResponseEntity.notFound().build();
     }
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<Customer> updateCustomerStatus(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+        String newStatus = payload.getOrDefault("status", "ACTIVE");
         Optional<Customer> cOpt = customerRepository.findById(id);
         if (cOpt.isPresent()) {
             Customer c = cOpt.get();
-            String newStatus = payload.getOrDefault("status", "ACTIVE");
             c.setStatus(newStatus);
             Customer updated = customerRepository.save(c);
             return ResponseEntity.ok(updated);
         }
+
+        Optional<User> uOpt = userRepository.findById(id);
+        if (uOpt.isPresent()) {
+            User u = uOpt.get();
+            u.setIsActive("ACTIVE".equalsIgnoreCase(newStatus));
+            User updatedUser = userRepository.save(u);
+            return ResponseEntity.ok(Customer.builder()
+                    .id(updatedUser.getId())
+                    .name(updatedUser.getFullName())
+                    .email(updatedUser.getEmail())
+                    .phone(updatedUser.getPhoneNumber())
+                    .companyName(updatedUser.getCompanyName())
+                    .country(updatedUser.getCity() != null ? updatedUser.getCity() + ", " + updatedUser.getState() : "India")
+                    .status(Boolean.TRUE.equals(updatedUser.getIsActive()) ? "ACTIVE" : "INACTIVE")
+                    .createdAt(updatedUser.getCreatedAt())
+                    .build());
+        }
+
         return ResponseEntity.notFound().build();
     }
 
@@ -63,6 +151,10 @@ public class CustomerController {
     public ResponseEntity<Map<String, Object>> deleteCustomer(@PathVariable Long id) {
         if (customerRepository.existsById(id)) {
             customerRepository.deleteById(id);
+            return ResponseEntity.ok(Map.of("message", "Customer deleted", "success", true));
+        }
+        if (userRepository.existsById(id)) {
+            userRepository.deleteById(id);
             return ResponseEntity.ok(Map.of("message", "Customer deleted", "success", true));
         }
         return ResponseEntity.notFound().build();

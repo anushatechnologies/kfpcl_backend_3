@@ -10,7 +10,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/dashboard")
-@RequiredArgsConstructor
 public class DashboardController {
 
     private final ProductRepository productRepository;
@@ -18,6 +17,23 @@ public class DashboardController {
     private final SubcategoryRepository subcategoryRepository;
     private final RfqRepository rfqRepository;
     private final CustomerRepository customerRepository;
+    private final com.project.kfpcl_exports.repository.UserRepository userRepository;
+
+    public DashboardController(
+            ProductRepository productRepository,
+            CategoryRepository categoryRepository,
+            SubcategoryRepository subcategoryRepository,
+            RfqRepository rfqRepository,
+            CustomerRepository customerRepository,
+            @org.springframework.beans.factory.annotation.Qualifier("mainUserRepository") com.project.kfpcl_exports.repository.UserRepository userRepository
+    ) {
+        this.productRepository = productRepository;
+        this.categoryRepository = categoryRepository;
+        this.subcategoryRepository = subcategoryRepository;
+        this.rfqRepository = rfqRepository;
+        this.customerRepository = customerRepository;
+        this.userRepository = userRepository;
+    }
 
     @GetMapping("/summary")
     public ResponseEntity<Map<String, Object>> getSummary() {
@@ -25,7 +41,7 @@ public class DashboardController {
         long totalCategories = categoryRepository.countByDeletedFalse();
         long totalSubcategories = subcategoryRepository.countByDeletedFalse();
         long totalRfqs = rfqRepository.count();
-        long totalCustomers = customerRepository.count();
+        long totalCustomers = customerRepository.count() + userRepository.count();
 
         return ResponseEntity.ok(Map.of(
                 "totalProducts", totalProducts,
