@@ -27,7 +27,12 @@ public class CustomerController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Customer>> getAllCustomers() {
+    public ResponseEntity<?> getAllCustomers(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status
+    ) {
         List<Customer> result = new ArrayList<>(customerRepository.findAll());
         Set<String> existingPhones = result.stream()
                 .map(c -> c.getPhone() != null ? c.getPhone().replaceAll("[^0-9]", "") : "")
@@ -53,7 +58,50 @@ public class CustomerController {
                     .build();
             result.add(c);
         }
-        return ResponseEntity.ok(result);
+
+        // Apply search filter if present
+        if (search != null && !search.isBlank()) {
+            String query = search.trim().toLowerCase();
+            result = result.stream()
+                    .filter(c -> (c.getName() != null && c.getName().toLowerCase().contains(query))
+                            || (c.getPhone() != null && c.getPhone().contains(query))
+                            || (c.getEmail() != null && c.getEmail().toLowerCase().contains(query))
+                            || (c.getCompanyName() != null && c.getCompanyName().toLowerCase().contains(query)))
+                    .collect(Collectors.toList());
+        }
+
+        // Apply status filter if present
+        if (status != null && !status.isBlank() && !status.equalsIgnoreCase("ALL")) {
+            String targetStatus = status.trim().toUpperCase();
+            result = result.stream()
+                    .filter(c -> c.getStatus() != null && c.getStatus().equalsIgnoreCase(targetStatus))
+                    .collect(Collectors.toList());
+        }
+
+        // If no pagination requested, return raw array (100% backward compatible)
+        if (page == null && size == null) {
+            return ResponseEntity.ok(result);
+        }
+
+        // Apply pagination
+        int p = page != null ? Math.max(0, page) : 0;
+        int s = size != null && size > 0 ? size : 10;
+        int totalElements = result.size();
+        int totalPages = (int) Math.ceil((double) totalElements / s);
+        int fromIndex = Math.min(p * s, totalElements);
+        int toIndex = Math.min(fromIndex + s, totalElements);
+        List<Customer> paginatedList = result.subList(fromIndex, toIndex);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", paginatedList);
+        response.put("customers", paginatedList);
+        response.put("totalElements", totalElements);
+        response.put("totalPages", totalPages);
+        response.put("currentPage", p);
+        response.put("pageSize", s);
+        response.put("success", true);
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
