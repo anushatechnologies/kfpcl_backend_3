@@ -358,16 +358,18 @@ public class RfqService {
         BuyerRfqResponseDto.ProductSummaryDto productDto = null;
         String prodTitle = null;
         Long prodId = null;
-        if (rfq.getProduct() != null) {
-            prodTitle = rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle();
-            prodId = rfq.getProduct().getId();
-            productDto = BuyerRfqResponseDto.ProductSummaryDto.builder()
-                    .id(prodId)
-                    .name(prodTitle)
-                    .description(rfq.getProduct().getDescription())
-                    .imageUrl(rfq.getProduct().getImageUrl())
-                    .build();
-        }
+        try {
+            if (rfq.getProduct() != null) {
+                prodTitle = rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle();
+                prodId = rfq.getProduct().getId();
+                productDto = BuyerRfqResponseDto.ProductSummaryDto.builder()
+                        .id(prodId)
+                        .name(prodTitle)
+                        .description(rfq.getProduct().getDescription())
+                        .imageUrl(rfq.getProduct().getImageUrl())
+                        .build();
+            }
+        } catch (Exception ignored) {}
 
         String unit = null;
         if (rfq.getQuantity() != null && rfq.getQuantity().contains(" ")) {
@@ -403,6 +405,15 @@ public class RfqService {
                     .build();
         }
 
+        String bName = rfq.getBuyerName();
+        String bPhone = rfq.getBuyerPhone();
+        try {
+            if (rfq.getBuyer() != null) {
+                if (bName == null || bName.isBlank()) bName = rfq.getBuyer().getName();
+                if (bPhone == null || bPhone.isBlank()) bPhone = rfq.getBuyer().getPhoneNumber();
+            }
+        } catch (Exception ignored) {}
+
         return BuyerRfqResponseDto.builder()
                 .id(rfq.getId())
                 .rfqId(rfq.getId().toString())
@@ -411,8 +422,8 @@ public class RfqService {
                 .productId(prodId)
                 .title(prodTitle)
                 .productName(prodTitle)
-                .buyerName(rfq.getBuyerName() != null ? rfq.getBuyerName() : (rfq.getBuyer() != null ? rfq.getBuyer().getName() : null))
-                .buyerPhone(rfq.getBuyerPhone() != null ? rfq.getBuyerPhone() : (rfq.getBuyer() != null ? rfq.getBuyer().getPhoneNumber() : null))
+                .buyerName(bName)
+                .buyerPhone(bPhone)
                 .quantity(rfq.getQuantity())
                 .unit(unit)
                 .deliveryLocation(rfq.getDeliveryLocation())

@@ -52,6 +52,23 @@ public class DbMigrationFix implements CommandLineRunner {
         // 6. Fix buyer_rfqs.buyer_id to VARCHAR(64) to allow storing UUID string without truncation
         dropForeignKeyOnColumn("buyer_rfqs", "buyer_id");
         modifyColumnType("buyer_rfqs", "buyer_id", "VARCHAR(64)");
+
+        // 7. Backfill any missing buyer_users referenced by legacy buyer_rfqs (e.g. id = 6)
+        try {
+            jdbcTemplate.execute(
+                "INSERT IGNORE INTO buyer_users (id, email, password, name, role, enabled, created_at) " +
+                "SELECT DISTINCT r.buyer_id, " +
+                "CONCAT('buyer_', r.buyer_id, '@kfpclexports.com'), " +
+                "'disabled_password', " +
+                "COALESCE(r.buyer_name, CONCAT('Buyer ', r.buyer_id)), " +
+                "'ROLE_BUYER', 1, NOW() " +
+                "FROM buyer_rfqs r " +
+                "LEFT JOIN buyer_users u ON r.buyer_id = u.id " +
+                "WHERE u.id IS NULL AND r.buyer_id IS NOT NULL AND r.buyer_id != ''"
+            );
+        } catch (Exception e) {
+            log.debug("Notice on buyer_users backfill: {}", e.getMessage());
+        }
     }
 
     private void cleanupInvalidColumnData() {

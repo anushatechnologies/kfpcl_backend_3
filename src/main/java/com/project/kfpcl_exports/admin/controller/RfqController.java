@@ -49,25 +49,47 @@ public class RfqController {
         map.put("status", rfq.getStatus() != null ? rfq.getStatus().name() : "SUBMITTED");
         map.put("createdAt", rfq.getCreatedAt());
 
-        String buyerName = rfq.getBuyerName() != null ? rfq.getBuyerName() : (rfq.getBuyer() != null ? rfq.getBuyer().getName() : null);
-        String buyerPhone = rfq.getBuyerPhone() != null ? rfq.getBuyerPhone() : (rfq.getBuyer() != null ? rfq.getBuyer().getPhoneNumber() : null);
-        map.put("buyerName", buyerName);
-        map.put("buyerPhone", buyerPhone);
+        String buyerName = rfq.getBuyerName();
+        String buyerPhone = rfq.getBuyerPhone();
+        String buyerId = null;
+        String buyerEmail = null;
 
-        if (rfq.getBuyer() != null) {
-            map.put("buyerId", rfq.getBuyer().getId());
-            map.put("buyerEmail", rfq.getBuyer().getEmail());
-            map.put("userEmail", rfq.getBuyer().getEmail());
+        try {
+            com.project.kfpcl_exports.buyer.model.User buyer = rfq.getBuyer();
+            if (buyer != null) {
+                buyerId = buyer.getId();
+                buyerEmail = buyer.getEmail();
+                if (buyerName == null || buyerName.isBlank()) {
+                    buyerName = buyer.getName();
+                }
+                if (buyerPhone == null || buyerPhone.isBlank()) {
+                    buyerPhone = buyer.getPhoneNumber();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not load buyer for RFQ id {}: {}", rfq.getId(), e.getMessage());
         }
 
-        if (rfq.getProduct() != null) {
-            String pName = rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle();
-            map.put("productId", rfq.getProduct().getId());
-            map.put("productTitle", pName);
-            map.put("productName", pName);
-            map.put("productImage", rfq.getProduct().getMainImageUrl());
-            map.put("mainImageUrl", rfq.getProduct().getMainImageUrl());
-            map.put("price", rfq.getProduct().getIndicativePrice());
+        map.put("buyerName", buyerName);
+        map.put("buyerPhone", buyerPhone);
+        if (buyerId != null) {
+            map.put("buyerId", buyerId);
+            map.put("buyerEmail", buyerEmail);
+            map.put("userEmail", buyerEmail);
+        }
+
+        try {
+            if (rfq.getProduct() != null) {
+                String pName = rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle();
+                map.put("productId", rfq.getProduct().getId());
+                map.put("productTitle", pName);
+                map.put("productName", pName);
+                map.put("productImage", rfq.getProduct().getMainImageUrl());
+                map.put("mainImageUrl", rfq.getProduct().getMainImageUrl());
+                map.put("price", rfq.getProduct().getIndicativePrice());
+            }
+        } catch (Exception e) {
+            log.warn("Could not load product for RFQ id {}: {}", rfq.getId(), e.getMessage());
         }
 
         if (rfq.getLatestResponse() != null) {

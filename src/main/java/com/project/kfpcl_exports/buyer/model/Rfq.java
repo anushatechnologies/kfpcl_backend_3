@@ -34,12 +34,14 @@ public class Rfq {
     private String rfqCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "buyer_id", nullable = false)
+    @JoinColumn(name = "buyer_id")
+    @org.hibernate.annotations.NotFound(action = org.hibernate.annotations.NotFoundAction.IGNORE)
     @JsonIgnore
     private User buyer;
 
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "product_id", nullable = false)
+    @JoinColumn(name = "product_id")
+    @org.hibernate.annotations.NotFound(action = org.hibernate.annotations.NotFoundAction.IGNORE)
     private Product product;
 
     @Column(nullable = false, length = 100)
