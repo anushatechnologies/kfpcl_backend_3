@@ -57,6 +57,9 @@ public class DbMigrationFix implements CommandLineRunner {
         modifyColumnType("notifications", "user_id", "VARCHAR(64)");
         dropForeignKeysReferencingTable("rfq_responses", "admin_rfqs");
         dropForeignKeysReferencingTable("rfq_responses", "rfqs");
+        dropForeignKeysReferencingTable("fcm_tokens", "users");
+        dropForeignKeysReferencingTable("addresses", "users");
+        dropForeignKeysReferencingTable("notifications", "users");
 
         // 7. Backfill any missing buyer_users referenced by legacy buyer_rfqs (e.g. id = 6)
         try {

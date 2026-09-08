@@ -4,26 +4,33 @@ import com.project.kfpcl_exports.admin.model.Customer;
 import com.project.kfpcl_exports.admin.repository.CustomerRepository;
 import com.project.kfpcl_exports.model.User;
 import com.project.kfpcl_exports.repository.UserRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/admin/customers")
 public class CustomerController {
 
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public CustomerController(
             CustomerRepository customerRepository,
-            @Qualifier("mainUserRepository") UserRepository userRepository
+            @Qualifier("mainUserRepository") UserRepository userRepository,
+            JdbcTemplate jdbcTemplate
     ) {
         this.customerRepository = customerRepository;
         this.userRepository = userRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @GetMapping
@@ -195,6 +202,7 @@ public class CustomerController {
         return ResponseEntity.notFound().build();
     }
 
+    @Transactional
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> deleteCustomer(@PathVariable Long id) {
         if (customerRepository.existsById(id)) {
@@ -202,6 +210,48 @@ public class CustomerController {
             return ResponseEntity.ok(Map.of("message", "Customer deleted", "success", true));
         }
         if (userRepository.existsById(id)) {
+            String idStr = String.valueOf(id);
+            // 1. Delete associated FCM tokens
+            try {
+                jdbcTemplate.update("DELETE FROM fcm_tokens WHERE user_id = ?", id);
+            } catch (Exception e) {
+                log.warn("Could not delete fcm_tokens for user {}: {}", id, e.getMessage());
+            }
+
+            // 2. Delete associated addresses
+            try {
+                jdbcTemplate.update("DELETE FROM addresses WHERE user_id = ?", id);
+            } catch (Exception e) {
+                log.warn("Could not delete addresses for user {}: {}", id, e.getMessage());
+            }
+
+            // 3. Delete associated notifications
+            try {
+                jdbcTemplate.update("DELETE FROM notifications WHERE user_id = ? OR user_id = ?", idStr, id);
+            } catch (Exception e) {
+                log.warn("Could not delete notifications for user {}: {}", id, e.getMessage());
+            }
+
+            // 4. Delete associated wishlists
+            try {
+                jdbcTemplate.update("DELETE FROM wishlists WHERE buyer_id = ?", id);
+            } catch (Exception e) {
+                log.warn("Could not delete wishlists for user {}: {}", id, e.getMessage());
+            }
+
+            // 5. Delete associated RFQs and responses
+            try {
+                jdbcTemplate.update("DELETE FROM rfq_responses WHERE rfq_id IN (SELECT id FROM buyer_rfqs WHERE buyer_id = ?)", idStr);
+                jdbcTemplate.update("DELETE FROM buyer_rfqs WHERE buyer_id = ?", idStr);
+            } catch (Exception e) {
+                log.warn("Could not delete RFQs for user {}: {}", id, e.getMessage());
+            }
+
+            // 6. Delete from buyer_users if exists
+            try {
+                jdbcTemplate.update("DELETE FROM buyer_users WHERE id = ?", idStr);
+            } catch (Exception ignored) {}
+
             userRepository.deleteById(id);
             return ResponseEntity.ok(Map.of("message", "Customer deleted", "success", true));
         }
