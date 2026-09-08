@@ -38,16 +38,56 @@ public class AuthDTOs {
         @JsonProperty("exists")
         private boolean exists;
 
+        @JsonProperty("isRegistered")
+        private boolean isRegistered;
+
+        @JsonProperty("success")
+        private boolean success = true;
+
         public CheckPhoneResponse() {}
-        public CheckPhoneResponse(boolean exists) { this.exists = exists; }
+        public CheckPhoneResponse(boolean exists) { 
+            this.exists = exists; 
+            this.isRegistered = exists;
+            this.success = true;
+        }
         public boolean isExists() { return exists; }
-        public void setExists(boolean exists) { this.exists = exists; }
+        public void setExists(boolean exists) { 
+            this.exists = exists; 
+            this.isRegistered = exists;
+        }
+        public boolean isRegistered() { return isRegistered; }
+        public void setRegistered(boolean isRegistered) { 
+            this.isRegistered = isRegistered; 
+            this.exists = isRegistered;
+        }
+        public boolean isSuccess() { return success; }
+        public void setSuccess(boolean success) { this.success = success; }
 
         public static CheckPhoneResponseBuilder builder() { return new CheckPhoneResponseBuilder(); }
         public static class CheckPhoneResponseBuilder {
             private boolean exists;
-            public CheckPhoneResponseBuilder exists(boolean exists) { this.exists = exists; return this; }
-            public CheckPhoneResponse build() { return new CheckPhoneResponse(exists); }
+            private boolean isRegistered;
+            private boolean success = true;
+
+            public CheckPhoneResponseBuilder exists(boolean exists) { 
+                this.exists = exists; 
+                this.isRegistered = exists;
+                return this; 
+            }
+            public CheckPhoneResponseBuilder isRegistered(boolean isRegistered) { 
+                this.isRegistered = isRegistered; 
+                this.exists = isRegistered;
+                return this; 
+            }
+            public CheckPhoneResponseBuilder success(boolean success) { 
+                this.success = success; 
+                return this; 
+            }
+            public CheckPhoneResponse build() { 
+                CheckPhoneResponse res = new CheckPhoneResponse(exists);
+                res.setSuccess(success);
+                return res;
+            }
         }
     }
 
