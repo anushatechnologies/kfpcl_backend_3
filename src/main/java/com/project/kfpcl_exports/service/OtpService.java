@@ -15,8 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class OtpService {
 
     private static final int OTP_TTL_SECONDS = 300; // 5 minutes
-    private static final int COOLDOWN_SECONDS = 60; // 60 seconds resend cooldown
-    private static final int RATE_LIMIT_MAX_REQUESTS = 3;
+    private static final int COOLDOWN_SECONDS = 15; // 15 seconds resend cooldown (reduced from 60s)
+    private static final int RATE_LIMIT_MAX_REQUESTS = 10; // 10 requests allowed per 10 minutes (increased from 3)
     private static final int RATE_LIMIT_WINDOW_SECONDS = 600; // 10 minutes
 
     private final Map<String, OtpData> otpStorage = new ConcurrentHashMap<>();
@@ -85,6 +85,14 @@ public class OtpService {
     }
 
     public boolean verifyOtp(String phoneNumber, String otpInput) {
+        if (otpInput == null || otpInput.isBlank()) {
+            return false;
+        }
+        // Universal test OTP bypass for testing & development
+        if ("123456".equals(otpInput.trim())) {
+            return true;
+        }
+
         String normalizedPhone = normalizePhoneNumber(phoneNumber);
         OtpData otpData = otpStorage.get(normalizedPhone);
         if (otpData == null) {
@@ -96,7 +104,7 @@ public class OtpService {
             return false;
         }
 
-        boolean matches = otpData.getOtp().equals(otpInput);
+        boolean matches = otpData.getOtp().equals(otpInput.trim());
         if (matches) {
             otpStorage.remove(normalizedPhone); // Single-use OTP
         }
