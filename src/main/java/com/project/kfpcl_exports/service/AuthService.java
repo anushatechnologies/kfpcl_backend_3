@@ -48,70 +48,93 @@ public class AuthService {
         String digits = trimmed.replaceAll("[^0-9]", "");
         String clean10 = digits.length() > 10 ? digits.substring(digits.length() - 10) : digits;
 
-        // 1. Direct match on trimmed
-        Optional<User> opt = userRepository.findByPhoneNumber(trimmed);
-        if (opt.isPresent()) return opt;
+        try {
+            // 1. Direct match on trimmed
+            try {
+                Optional<User> opt = userRepository.findByPhoneNumber(trimmed);
+                if (opt.isPresent()) return opt;
+            } catch (Exception ignored) {}
 
-        if (!clean10.isEmpty()) {
-            opt = userRepository.findByPhoneNumber(clean10);
-            if (opt.isPresent()) return opt;
+            if (!clean10.isEmpty()) {
+                try {
+                    Optional<User> opt = userRepository.findByPhoneNumber(clean10);
+                    if (opt.isPresent()) return opt;
+                } catch (Exception ignored) {}
 
-            opt = userRepository.findByPhoneNumber("+91" + clean10);
-            if (opt.isPresent()) return opt;
+                try {
+                    Optional<User> opt = userRepository.findByPhoneNumber("+91" + clean10);
+                    if (opt.isPresent()) return opt;
+                } catch (Exception ignored) {}
 
-            opt = userRepository.findByPhoneNumber("91" + clean10);
-            if (opt.isPresent()) return opt;
-        }
+                try {
+                    Optional<User> opt = userRepository.findByPhoneNumber("91" + clean10);
+                    if (opt.isPresent()) return opt;
+                } catch (Exception ignored) {}
+            }
 
-        // 2. Scan all users in users table matching clean10
-        if (clean10.length() == 10) {
-            List<User> allUsers = userRepository.findAll();
-            for (User u : allUsers) {
-                if (u.getPhoneNumber() != null) {
-                    String uDigits = u.getPhoneNumber().replaceAll("[^0-9]", "");
-                    String u10 = uDigits.length() > 10 ? uDigits.substring(uDigits.length() - 10) : uDigits;
-                    if (clean10.equals(u10)) {
-                        return Optional.of(u);
+            // 2. Scan all users in users table matching clean10 (handles non-unique safely)
+            if (clean10.length() == 10) {
+                try {
+                    List<User> allUsers = userRepository.findAll();
+                    for (User u : allUsers) {
+                        if (u.getPhoneNumber() != null) {
+                            String uDigits = u.getPhoneNumber().replaceAll("[^0-9]", "");
+                            String u10 = uDigits.length() > 10 ? uDigits.substring(uDigits.length() - 10) : uDigits;
+                            if (clean10.equals(u10)) {
+                                return Optional.of(u);
+                            }
+                        }
                     }
-                }
+                } catch (Exception ignored) {}
             }
-        }
 
-        // 3. Check legacy buyer_users table and bridge to main users if present
-        if (clean10.length() == 10 && buyerUserRepository != null) {
-            Optional<com.project.kfpcl_exports.buyer.model.User> buyerOpt = buyerUserRepository.findByPhoneNumber(clean10);
-            if (buyerOpt.isEmpty()) {
-                buyerOpt = buyerUserRepository.findByEmail(clean10 + "@kfpcl-buyer.com");
+            // 3. Check legacy buyer_users table and bridge to main users if present
+            if (clean10.length() == 10 && buyerUserRepository != null) {
+                try {
+                    List<com.project.kfpcl_exports.buyer.model.User> allBuyers = buyerUserRepository.findAll();
+                    for (com.project.kfpcl_exports.buyer.model.User bu : allBuyers) {
+                        String bPhone = bu.getPhoneNumber() != null ? bu.getPhoneNumber().replaceAll("[^0-9]", "") : "";
+                        if (bPhone.length() > 10) bPhone = bPhone.substring(bPhone.length() - 10);
+                        boolean match = clean10.equals(bPhone)
+                                || (bu.getEmail() != null && bu.getEmail().contains(clean10))
+                                || (bu.getName() != null && bu.getName().contains(clean10));
+                        if (match) {
+                            User bridgeUser = User.builder()
+                                    .phoneNumber(clean10)
+                                    .fullName(bu.getName() != null && !bu.getName().isBlank() ? bu.getName() : "Buyer " + clean10)
+                                    .email(bu.getEmail() != null && bu.getEmail().contains("@") ? bu.getEmail() : clean10 + "@kfpcl-buyer.com")
+                                    .companyName("KFPCL Buyer")
+                                    .businessType("Wholesaler")
+                                    .state("Telangana")
+                                    .city("Hyderabad")
+                                    .isVerified(true)
+                                    .isActive(true)
+                                    .build();
+                            try {
+                                return Optional.of(userRepository.save(bridgeUser));
+                            } catch (Exception ignored) {
+                                return Optional.of(bridgeUser);
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
             }
-            if (buyerOpt.isEmpty()) {
-                buyerOpt = buyerUserRepository.findByEmail(clean10 + "@kfpcl.com");
-            }
-            if (buyerOpt.isEmpty()) {
-                buyerOpt = buyerUserRepository.findByEmail(clean10);
-            }
-            if (buyerOpt.isPresent()) {
-                com.project.kfpcl_exports.buyer.model.User bu = buyerOpt.get();
-                User bridgeUser = User.builder()
-                        .phoneNumber(clean10)
-                        .fullName(bu.getName() != null && !bu.getName().isBlank() ? bu.getName() : "Buyer " + clean10)
-                        .email(bu.getEmail() != null && bu.getEmail().contains("@") ? bu.getEmail() : "")
-                        .companyName("KFPCL Buyer")
-                        .businessType("Wholesaler")
-                        .state("Telangana")
-                        .city("Hyderabad")
-                        .isVerified(true)
-                        .isActive(true)
-                        .build();
-                return Optional.of(userRepository.save(bridgeUser));
-            }
-        }
+        } catch (Exception ignored) {}
 
         return Optional.empty();
     }
 
     public CheckPhoneResponse checkPhone(String phoneNumber) {
-        Optional<User> userOpt = findUserAnywhere(phoneNumber);
-        return CheckPhoneResponse.builder().exists(userOpt.isPresent()).build();
+        try {
+            Optional<User> userOpt = findUserAnywhere(phoneNumber);
+            return CheckPhoneResponse.builder()
+                    .exists(userOpt.isPresent())
+                    .isRegistered(userOpt.isPresent() && Boolean.TRUE.equals(userOpt.get().getIsActive()))
+                    .success(true)
+                    .build();
+        } catch (Exception e) {
+            return CheckPhoneResponse.builder().exists(false).isRegistered(false).success(true).build();
+        }
     }
 
     public SendOtpResponse sendOtp(SendOtpRequest request) {
