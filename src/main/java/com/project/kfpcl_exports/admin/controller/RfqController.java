@@ -46,7 +46,14 @@ public class RfqController {
         map.put("subject", rfq.getSubject());
         map.put("fileUrl", rfq.getFileUrl());
         map.put("status", rfq.getStatus() != null ? rfq.getStatus().name() : "SUBMITTED");
+        map.put("buyerStatus", rfq.getStatus() != null ? rfq.getStatus().name() : "SUBMITTED");
+        map.put("isAccepted", rfq.getStatus() == RfqStatus.ACCEPTED);
+        map.put("isRejected", rfq.getStatus() == RfqStatus.REJECTED);
+        map.put("isResponded", rfq.getStatus() == RfqStatus.RESPONDED);
+        map.put("quotationStatus", rfq.getStatus() != null ? rfq.getStatus().name() : "PENDING");
+        map.put("rejectionReason", rfq.getRejectionReason());
         map.put("createdAt", rfq.getCreatedAt());
+        map.put("updatedAt", rfq.getUpdatedAt());
 
         String buyerName = rfq.getBuyerName();
         String buyerPhone = rfq.getBuyerPhone();
@@ -91,8 +98,14 @@ public class RfqController {
             log.warn("Could not load product for RFQ id {}: {}", rfq.getId(), e.getMessage());
         }
 
+        String supplierName = "Awaiting response";
         if (rfq.getLatestResponse() != null) {
             RfqResponse resp = rfq.getLatestResponse();
+            if (resp.getContactName() != null && !resp.getContactName().isBlank()) {
+                supplierName = resp.getContactName();
+            } else {
+                supplierName = "KFPCL Admin Team";
+            }
             Map<String, Object> respMap = new HashMap<>();
             respMap.put("quoteId", "QUO-" + resp.getId());
             respMap.put("quotedPrice", resp.getQuotedPrice());
@@ -102,10 +115,17 @@ public class RfqController {
             respMap.put("leadTime", resp.getDeliveryTime());
             respMap.put("responseMessage", resp.getResponseMessage());
             respMap.put("notes", resp.getResponseMessage());
+            respMap.put("contactName", supplierName);
+            respMap.put("status", rfq.getStatus() != null ? rfq.getStatus().name() : "RESPONDED");
+            respMap.put("isAccepted", rfq.getStatus() == RfqStatus.ACCEPTED);
             respMap.put("createdAt", resp.getCreatedAt());
             map.put("quotation", respMap);
             map.put("response", respMap);
         }
+
+        map.put("supplier", supplierName);
+        map.put("supplierName", supplierName);
+        map.put("supplierStatus", rfq.getLatestResponse() != null ? "Quoted" : "Awaiting response");
 
         return map;
     }
@@ -117,11 +137,26 @@ public class RfqController {
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(Math.max(0, page), size > 0 ? size : 20, Sort.by("createdAt").descending());
         Page<Rfq> pageResult;
-        if (status != null && !status.isBlank()) {
-            try {
-                RfqStatus st = RfqStatus.valueOf(status.toUpperCase());
+        if (status != null && !status.isBlank() && !status.equalsIgnoreCase("ALL")) {
+            String s = status.trim().toUpperCase();
+            RfqStatus st = null;
+            if (s.equals("QUOTED") || s.equals("RESPONDED")) {
+                st = RfqStatus.RESPONDED;
+            } else if (s.equals("ACCEPTED") || s.equals("APPROVED")) {
+                st = RfqStatus.ACCEPTED;
+            } else if (s.equals("REJECTED")) {
+                st = RfqStatus.REJECTED;
+            } else if (s.equals("PENDING") || s.equals("SUBMITTED")) {
+                st = RfqStatus.PENDING;
+            } else {
+                try {
+                    st = RfqStatus.valueOf(s);
+                } catch (Exception ignored) {}
+            }
+
+            if (st != null) {
                 pageResult = buyerRfqRepository.findByStatusOrderByCreatedAtDesc(st, pageable);
-            } catch (Exception e) {
+            } else {
                 pageResult = buyerRfqRepository.findAll(pageable);
             }
         } else {

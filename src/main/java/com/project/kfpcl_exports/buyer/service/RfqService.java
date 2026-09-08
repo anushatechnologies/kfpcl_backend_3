@@ -9,6 +9,7 @@ import com.project.kfpcl_exports.buyer.repository.ProductRepository;
 import com.project.kfpcl_exports.buyer.repository.RfqRepository;
 import com.project.kfpcl_exports.buyer.repository.RfqResponseRepository;
 import com.project.kfpcl_exports.buyer.util.RfqCodeGenerator;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+@Slf4j
 @Service
 @Transactional
 public class RfqService {
@@ -175,14 +177,18 @@ public class RfqService {
         Rfq saved = rfqRepository.save(rfq);
 
         // Transactional notification
-        notificationService.createNotification(
-                buyer,
-                NotificationType.RFQ_ACCEPTED,
-                "RFQ Accepted",
-                "You have successfully accepted the quotation for RFQ " + saved.getRfqCode() + ". Contact details are now accessible.",
-                "RFQ",
-                saved.getRfqCode()
-        );
+        try {
+            notificationService.createNotification(
+                    buyer,
+                    NotificationType.RFQ_ACCEPTED,
+                    "RFQ Accepted",
+                    "You have successfully accepted the quotation for RFQ " + saved.getRfqCode() + ". Contact details are now accessible.",
+                    "RFQ",
+                    saved.getRfqCode()
+            );
+        } catch (Exception e) {
+            log.warn("Failed to create RFQ_ACCEPTED notification for RFQ {}: {}", saved.getRfqCode(), e.getMessage());
+        }
 
         return mapToBuyerDto(saved, true);
     }
@@ -210,14 +216,18 @@ public class RfqService {
         Rfq saved = rfqRepository.save(rfq);
 
         // Transactional notification
-        notificationService.createNotification(
-                buyer,
-                NotificationType.RFQ_REJECTED,
-                "RFQ Rejected",
-                "You have rejected the quotation for RFQ " + saved.getRfqCode() + ".",
-                "RFQ",
-                saved.getRfqCode()
-        );
+        try {
+            notificationService.createNotification(
+                    buyer,
+                    NotificationType.RFQ_REJECTED,
+                    "RFQ Rejected",
+                    "You have rejected the quotation for RFQ " + saved.getRfqCode() + ".",
+                    "RFQ",
+                    saved.getRfqCode()
+            );
+        } catch (Exception e) {
+            log.warn("Failed to create RFQ_REJECTED notification for RFQ {}: {}", saved.getRfqCode(), e.getMessage());
+        }
 
         return mapToBuyerDto(saved, false);
     }
@@ -316,14 +326,18 @@ public class RfqService {
         rfq.getResponses().add(0, response);
         rfqRepository.save(rfq);
 
-        notificationService.createNotification(
-                rfq.getBuyer(),
-                NotificationType.RFQ_RESPONSE_RECEIVED,
-                "RFQ Response Received",
-                "A response has been received for RFQ " + rfq.getRfqCode() + ".",
-                "RFQ",
-                rfq.getRfqCode()
-        );
+        try {
+            notificationService.createNotification(
+                    rfq.getBuyer(),
+                    NotificationType.RFQ_RESPONSE_RECEIVED,
+                    "RFQ Response Received",
+                    "A response has been received for RFQ " + rfq.getRfqCode() + ".",
+                    "RFQ",
+                    rfq.getRfqCode()
+            );
+        } catch (Exception e) {
+            log.warn("Failed to create RFQ_RESPONSE_RECEIVED notification for RFQ {}: {}", rfq.getRfqCode(), e.getMessage());
+        }
     }
 
     // =========================================================================

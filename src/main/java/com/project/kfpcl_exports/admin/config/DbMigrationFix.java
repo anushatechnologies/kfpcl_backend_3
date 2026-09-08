@@ -54,6 +54,7 @@ public class DbMigrationFix implements CommandLineRunner {
         modifyColumnType("buyer_rfqs", "buyer_id", "VARCHAR(64)");
         dropForeignKeyOnColumn("rfq_responses", "rfq_id");
         dropForeignKeyOnColumn("notifications", "user_id");
+        modifyColumnType("notifications", "user_id", "VARCHAR(64)");
         dropForeignKeysReferencingTable("rfq_responses", "admin_rfqs");
         dropForeignKeysReferencingTable("rfq_responses", "rfqs");
 
