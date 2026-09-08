@@ -77,6 +77,22 @@ public class DbMigrationFix implements CommandLineRunner {
         } catch (Exception e) {
             log.debug("Notice on buyer_users backfill: {}", e.getMessage());
         }
+
+        // 8. Backfill missing phone_number in buyer_users extracted from email/name
+        try {
+            jdbcTemplate.execute(
+                "UPDATE buyer_users " +
+                "SET phone_number = SUBSTRING(REGEXP_SUBSTR(email, '[0-9]{10}'), -10) " +
+                "WHERE (phone_number IS NULL OR phone_number = '') AND email REGEXP '[0-9]{10}'"
+            );
+            jdbcTemplate.execute(
+                "UPDATE buyer_users " +
+                "SET phone_number = SUBSTRING(REGEXP_SUBSTR(name, '[0-9]{10}'), -10) " +
+                "WHERE (phone_number IS NULL OR phone_number = '') AND name REGEXP '[0-9]{10}'"
+            );
+        } catch (Exception e) {
+            log.debug("Notice on buyer_users phone backfill: {}", e.getMessage());
+        }
     }
 
     private void cleanupInvalidColumnData() {

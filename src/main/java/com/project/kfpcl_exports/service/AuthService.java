@@ -145,21 +145,37 @@ public class AuthService {
 
     @Transactional
     public TokenResponse signUp(SignUpRequest request) {
-        String phoneNumber = request.getPhoneNumber().trim();
+        String rawPhone = request.getPhoneNumber().trim();
+        String clean10 = rawPhone.replaceAll("[^0-9]", "");
+        if (clean10.length() > 10) {
+            clean10 = clean10.substring(clean10.length() - 10);
+        }
+        String phoneNumber = !clean10.isEmpty() ? clean10 : rawPhone;
 
-        boolean isVerificationValid = tokenService.validateVerificationToken(
-                request.getVerificationToken(), phoneNumber
-        );
+        boolean isVerificationValid = tokenService.validateVerificationToken(request.getVerificationToken(), rawPhone)
+                || (!clean10.isEmpty() && tokenService.validateVerificationToken(request.getVerificationToken(), clean10))
+                || (!clean10.isEmpty() && tokenService.validateVerificationToken(request.getVerificationToken(), "+91" + clean10));
 
         if (!isVerificationValid) {
             throw new IllegalArgumentException("Invalid or expired verification token");
         }
 
-        if (userRepository.existsByPhoneNumber(phoneNumber)) {
-            Optional<User> existingOpt = userRepository.findByPhoneNumber(phoneNumber);
-            if (existingOpt.isPresent() && Boolean.FALSE.equals(existingOpt.get().getIsActive())) {
+        // Check if user already exists across all format variations
+        Optional<User> existingOpt = userRepository.findByPhoneNumber(phoneNumber);
+        if (existingOpt.isEmpty() && !clean10.isEmpty()) {
+            existingOpt = userRepository.findByPhoneNumber(clean10);
+        }
+        if (existingOpt.isEmpty() && !clean10.isEmpty()) {
+            existingOpt = userRepository.findByPhoneNumber("+91" + clean10);
+        }
+        if (existingOpt.isEmpty()) {
+            existingOpt = userRepository.findByPhoneNumber(rawPhone);
+        }
+
+        if (existingOpt.isPresent()) {
+            User user = existingOpt.get();
+            if (Boolean.FALSE.equals(user.getIsActive())) {
                 // Re-activate previously soft-deleted account
-                User user = existingOpt.get();
                 user.setFullName(request.getFullName());
                 user.setEmail(request.getEmail());
                 user.setCompanyName(request.getCompanyName());

@@ -107,11 +107,51 @@ public class BuyerAuthHelper {
             return getOrCreateDefaultBuyer();
         }
 
+        // Extract clean 10 digits if identifier contains phone numbers
+        String digits = identifier.replaceAll("[^0-9]", "");
+        String clean10 = digits.length() > 10 ? digits.substring(digits.length() - 10) : digits;
+
+        // By Phone Number if clean10 is 10 digits
+        if (clean10.length() == 10) {
+            Optional<User> byPhone = userRepository.findByPhoneNumber(clean10);
+            if (byPhone.isPresent()) return byPhone.get();
+
+            Optional<User> byEmailVariant1 = userRepository.findByEmail(clean10 + "@kfpcl-buyer.com");
+            if (byEmailVariant1.isPresent()) {
+                User u = byEmailVariant1.get();
+                if (u.getPhoneNumber() == null) {
+                    u.setPhoneNumber(clean10);
+                    userRepository.save(u);
+                }
+                return u;
+            }
+
+            Optional<User> byEmailVariant2 = userRepository.findByEmail(clean10 + "@kfpcl.com");
+            if (byEmailVariant2.isPresent()) {
+                User u = byEmailVariant2.get();
+                if (u.getPhoneNumber() == null) {
+                    u.setPhoneNumber(clean10);
+                    userRepository.save(u);
+                }
+                return u;
+            }
+
+            Optional<User> byPlainPhoneAsEmail = userRepository.findByEmail(clean10);
+            if (byPlainPhoneAsEmail.isPresent()) {
+                User u = byPlainPhoneAsEmail.get();
+                if (u.getPhoneNumber() == null) {
+                    u.setPhoneNumber(clean10);
+                    userRepository.save(u);
+                }
+                return u;
+            }
+        }
+
         // By Email
         Optional<User> byEmail = userRepository.findByEmail(identifier);
         if (byEmail.isPresent()) return byEmail.get();
 
-        // By Phone Number
+        // By Phone Number raw
         Optional<User> byPhone = userRepository.findByPhoneNumber(identifier);
         if (byPhone.isPresent()) return byPhone.get();
 
@@ -122,11 +162,14 @@ public class BuyerAuthHelper {
         // Auto-create new buyer
         String email = identifier.contains("@")
                 ? identifier
-                : identifier.replaceAll("[^a-zA-Z0-9]", "") + "@kfpcl-buyer.com";
+                : (clean10.length() == 10 ? clean10 : identifier.replaceAll("[^a-zA-Z0-9]", "")) + "@kfpcl-buyer.com";
         return userRepository.findByEmail(email).orElseGet(() -> {
             User newUser = new User();
             newUser.setEmail(email);
             newUser.setName(identifier.contains("@") ? identifier.split("@")[0] : identifier);
+            if (clean10.length() == 10) {
+                newUser.setPhoneNumber(clean10);
+            }
             newUser.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
             newUser.setRole("ROLE_USER");
             newUser.setEnabled(true);
