@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -16,6 +17,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final com.project.kfpcl_exports.buyer.repository.UserRepository buyerUserRepository;
     private final FcmTokenRepository fcmTokenRepository;
     private final OtpService otpService;
     private final TokenService tokenService;
@@ -24,6 +26,7 @@ public class AuthService {
 
     public AuthService(
             @Qualifier("mainUserRepository") UserRepository userRepository,
+            @Qualifier("buyerUserRepository") com.project.kfpcl_exports.buyer.repository.UserRepository buyerUserRepository,
             FcmTokenRepository fcmTokenRepository,
             OtpService otpService,
             TokenService tokenService,
@@ -31,6 +34,7 @@ public class AuthService {
             FcmTokenService fcmTokenService
     ) {
         this.userRepository = userRepository;
+        this.buyerUserRepository = buyerUserRepository;
         this.fcmTokenRepository = fcmTokenRepository;
         this.otpService = otpService;
         this.tokenService = tokenService;
@@ -38,20 +42,76 @@ public class AuthService {
         this.fcmTokenService = fcmTokenService;
     }
 
+    public Optional<User> findUserAnywhere(String rawPhone) {
+        if (rawPhone == null || rawPhone.isBlank()) return Optional.empty();
+        String trimmed = rawPhone.trim();
+        String digits = trimmed.replaceAll("[^0-9]", "");
+        String clean10 = digits.length() > 10 ? digits.substring(digits.length() - 10) : digits;
+
+        // 1. Direct match on trimmed
+        Optional<User> opt = userRepository.findByPhoneNumber(trimmed);
+        if (opt.isPresent()) return opt;
+
+        if (!clean10.isEmpty()) {
+            opt = userRepository.findByPhoneNumber(clean10);
+            if (opt.isPresent()) return opt;
+
+            opt = userRepository.findByPhoneNumber("+91" + clean10);
+            if (opt.isPresent()) return opt;
+
+            opt = userRepository.findByPhoneNumber("91" + clean10);
+            if (opt.isPresent()) return opt;
+        }
+
+        // 2. Scan all users in users table matching clean10
+        if (clean10.length() == 10) {
+            List<User> allUsers = userRepository.findAll();
+            for (User u : allUsers) {
+                if (u.getPhoneNumber() != null) {
+                    String uDigits = u.getPhoneNumber().replaceAll("[^0-9]", "");
+                    String u10 = uDigits.length() > 10 ? uDigits.substring(uDigits.length() - 10) : uDigits;
+                    if (clean10.equals(u10)) {
+                        return Optional.of(u);
+                    }
+                }
+            }
+        }
+
+        // 3. Check legacy buyer_users table and bridge to main users if present
+        if (clean10.length() == 10 && buyerUserRepository != null) {
+            Optional<com.project.kfpcl_exports.buyer.model.User> buyerOpt = buyerUserRepository.findByPhoneNumber(clean10);
+            if (buyerOpt.isEmpty()) {
+                buyerOpt = buyerUserRepository.findByEmail(clean10 + "@kfpcl-buyer.com");
+            }
+            if (buyerOpt.isEmpty()) {
+                buyerOpt = buyerUserRepository.findByEmail(clean10 + "@kfpcl.com");
+            }
+            if (buyerOpt.isEmpty()) {
+                buyerOpt = buyerUserRepository.findByEmail(clean10);
+            }
+            if (buyerOpt.isPresent()) {
+                com.project.kfpcl_exports.buyer.model.User bu = buyerOpt.get();
+                User bridgeUser = User.builder()
+                        .phoneNumber(clean10)
+                        .fullName(bu.getName() != null && !bu.getName().isBlank() ? bu.getName() : "Buyer " + clean10)
+                        .email(bu.getEmail() != null && bu.getEmail().contains("@") ? bu.getEmail() : "")
+                        .companyName("KFPCL Buyer")
+                        .businessType("Wholesaler")
+                        .state("Telangana")
+                        .city("Hyderabad")
+                        .isVerified(true)
+                        .isActive(true)
+                        .build();
+                return Optional.of(userRepository.save(bridgeUser));
+            }
+        }
+
+        return Optional.empty();
+    }
+
     public CheckPhoneResponse checkPhone(String phoneNumber) {
-        if (phoneNumber == null || phoneNumber.isBlank()) {
-            return CheckPhoneResponse.builder().exists(false).build();
-        }
-        String trimmed = phoneNumber.trim();
-        String clean10 = trimmed.replaceAll("[^0-9]", "");
-        if (clean10.length() > 10) {
-            clean10 = clean10.substring(clean10.length() - 10);
-        }
-        boolean exists = userRepository.existsByPhoneNumberAndIsActiveTrue(trimmed)
-                || (!clean10.isEmpty() && userRepository.existsByPhoneNumberAndIsActiveTrue(clean10))
-                || (!clean10.isEmpty() && userRepository.existsByPhoneNumberAndIsActiveTrue("+91" + clean10))
-                || userRepository.existsByPhoneNumber(trimmed);
-        return CheckPhoneResponse.builder().exists(exists).build();
+        Optional<User> userOpt = findUserAnywhere(phoneNumber);
+        return CheckPhoneResponse.builder().exists(userOpt.isPresent()).build();
     }
 
     public SendOtpResponse sendOtp(SendOtpRequest request) {
@@ -105,16 +165,15 @@ public class AuthService {
             clean10 = clean10.substring(clean10.length() - 10);
         }
 
-        Optional<User> userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(phoneNumber);
-        if (userOpt.isEmpty() && !clean10.isEmpty()) {
-            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(clean10);
-        }
-        if (userOpt.isEmpty() && !clean10.isEmpty()) {
-            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue("+91" + clean10);
-        }
+        Optional<User> userOpt = findUserAnywhere(phoneNumber);
 
         if (userOpt.isPresent()) {
             User user = userOpt.get();
+            // Automatically re-activate if account was soft-deleted or inactive
+            if (!Boolean.TRUE.equals(user.getIsActive())) {
+                user.setIsActive(true);
+                user = userRepository.save(user);
+            }
             if (request.getFcmToken() != null && !request.getFcmToken().isBlank()) {
                 fcmTokenService.saveOrUpdateFcmToken(user.getId(), FcmTokenRequest.builder()
                         .fcmToken(request.getFcmToken())
@@ -161,34 +220,22 @@ public class AuthService {
         }
 
         // Check if user already exists across all format variations
-        Optional<User> existingOpt = userRepository.findByPhoneNumber(phoneNumber);
-        if (existingOpt.isEmpty() && !clean10.isEmpty()) {
-            existingOpt = userRepository.findByPhoneNumber(clean10);
-        }
-        if (existingOpt.isEmpty() && !clean10.isEmpty()) {
-            existingOpt = userRepository.findByPhoneNumber("+91" + clean10);
-        }
-        if (existingOpt.isEmpty()) {
-            existingOpt = userRepository.findByPhoneNumber(rawPhone);
-        }
+        Optional<User> existingOpt = findUserAnywhere(phoneNumber);
 
         if (existingOpt.isPresent()) {
             User user = existingOpt.get();
-            if (Boolean.FALSE.equals(user.getIsActive())) {
-                // Re-activate previously soft-deleted account
-                user.setFullName(request.getFullName());
-                user.setEmail(request.getEmail());
-                user.setCompanyName(request.getCompanyName());
-                user.setBusinessType(request.getBusinessType());
-                user.setState(request.getState());
-                user.setCity(request.getCity());
-                user.setIsActive(true);
-                user.setIsVerified(true);
-                User saved = userRepository.save(user);
+            // Re-activate previously soft-deleted or inactive account
+            user.setFullName(request.getFullName());
+            user.setEmail(request.getEmail());
+            user.setCompanyName(request.getCompanyName());
+            user.setBusinessType(request.getBusinessType());
+            user.setState(request.getState());
+            user.setCity(request.getCity());
+            user.setIsActive(true);
+            user.setIsVerified(true);
+            User saved = userRepository.save(user);
 
-                return issueTokensAndSaveFcm(saved, request.getFcmToken());
-            }
-            throw new IllegalStateException("User with this phone number is already registered.");
+            return issueTokensAndSaveFcm(saved, request.getFcmToken());
         }
 
         User newUser = User.builder()
@@ -216,20 +263,12 @@ public class AuthService {
             throw new IllegalArgumentException("Invalid or expired OTP");
         }
 
-        String clean10 = phoneNumber.replaceAll("[^0-9]", "");
-        if (clean10.length() > 10) {
-            clean10 = clean10.substring(clean10.length() - 10);
-        }
-
-        Optional<User> userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(phoneNumber);
-        if (userOpt.isEmpty() && !clean10.isEmpty()) {
-            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(clean10);
-        }
-        if (userOpt.isEmpty() && !clean10.isEmpty()) {
-            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue("+91" + clean10);
-        }
-
+        Optional<User> userOpt = findUserAnywhere(phoneNumber);
         User user = userOpt.orElseThrow(() -> new IllegalArgumentException("User not registered or account inactive"));
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            user.setIsActive(true);
+            user = userRepository.save(user);
+        }
 
         return issueTokensAndSaveFcm(user, request.getFcmToken());
     }
@@ -253,17 +292,15 @@ public class AuthService {
             clean10 = clean10.substring(clean10.length() - 10);
         }
 
-        Optional<User> userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(phoneNumber);
-        if (userOpt.isEmpty() && !clean10.isEmpty()) {
-            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue(clean10);
-        }
-        if (userOpt.isEmpty() && !clean10.isEmpty()) {
-            userOpt = userRepository.findByPhoneNumberAndIsActiveTrue("+91" + clean10);
-        }
+        Optional<User> userOpt = findUserAnywhere(phoneNumber);
 
         User user;
         if (userOpt.isPresent()) {
             user = userOpt.get();
+            if (!Boolean.TRUE.equals(user.getIsActive())) {
+                user.setIsActive(true);
+                user = userRepository.save(user);
+            }
         } else {
             user = User.builder()
                     .phoneNumber(!clean10.isEmpty() ? clean10 : phoneNumber)
