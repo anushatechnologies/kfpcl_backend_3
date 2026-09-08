@@ -174,7 +174,7 @@ public class RfqController {
      * Submit Quotation for RFQ by Admin
      * POST /api/admin/rfqs/{rfqId}/quotation or POST /api/admin/rfqs/{rfqId}/respond
      */
-    @RequestMapping(value = {"/{rfqId}/quotation", "/{rfqId}/respond"}, method = {RequestMethod.POST, RequestMethod.PUT})
+    @RequestMapping(value = {"/{rfqId}/quotation", "/{rfqId}/quotations", "/{rfqId}/quote", "/{rfqId}/respond"}, method = {RequestMethod.POST, RequestMethod.PUT})
     public ResponseEntity<Map<String, Object>> submitQuotation(
             @PathVariable String rfqId,
             @RequestBody QuotationRequest request) {
@@ -202,7 +202,24 @@ public class RfqController {
         int qty = (request.getQuantity() != null) ? request.getQuantity() : 1;
         String quantityStr = (request.getQuantity() != null) ? String.valueOf(request.getQuantity()) : rfq.getQuantity();
         String deliveryDays = (request.getDeliveryDays() != null) ? request.getDeliveryDays() : "5 days";
-        String notes = (request.getNotes() != null) ? request.getNotes() : "Price includes GST & loading at warehouse.";
+
+        StringBuilder noteBuilder = new StringBuilder();
+        if (request.getNotes() != null && !request.getNotes().isBlank()) {
+            noteBuilder.append(request.getNotes().trim());
+        }
+        if (request.getPaymentTerms() != null && !request.getPaymentTerms().isBlank()) {
+            if (noteBuilder.length() > 0) noteBuilder.append(" | ");
+            noteBuilder.append("Payment Terms: ").append(request.getPaymentTerms().trim());
+        }
+        if (request.getAvailability() != null && !request.getAvailability().isBlank()) {
+            if (noteBuilder.length() > 0) noteBuilder.append(" | ");
+            noteBuilder.append("Availability: ").append(request.getAvailability().trim());
+        }
+        if (request.getMoq() != null) {
+            if (noteBuilder.length() > 0) noteBuilder.append(" | ");
+            noteBuilder.append("MOQ: ").append(request.getMoq());
+        }
+        String notes = noteBuilder.length() > 0 ? noteBuilder.toString() : "Price includes GST & loading at warehouse.";
 
         RfqResponse response = RfqResponse.builder()
                 .rfq(rfq)
@@ -223,19 +240,20 @@ public class RfqController {
         rfq.setUpdatedAt(LocalDateTime.now());
         buyerRfqRepository.save(rfq);
 
-        if (rfq.getBuyer() != null && notificationService != null) {
-            try {
+        try {
+            com.project.kfpcl_exports.buyer.model.User buyer = rfq.getBuyer();
+            if (buyer != null && notificationService != null) {
                 notificationService.createNotification(
-                        rfq.getBuyer(),
+                        buyer,
                         com.project.kfpcl_exports.buyer.enums.NotificationType.RFQ_RESPONSE_RECEIVED,
                         "Quotation Received",
                         "Supplier quoted ₹" + unitPrice + " for your enquiry " + rfq.getRfqCode(),
                         "RFQ",
                         rfq.getRfqCode()
                 );
-            } catch (Exception e) {
-                log.warn("Failed to create notification: {}", e.getMessage());
             }
+        } catch (Exception e) {
+            log.warn("Failed to create notification for quotation: {}", e.getMessage());
         }
 
         double totalAmount = unitPrice * qty;
