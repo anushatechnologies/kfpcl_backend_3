@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 @RestController("adminRfqController")
 @RequestMapping({"/api/admin/rfqs", "/api/rfqs/admin"})
 @RequiredArgsConstructor
-@Transactional
 public class RfqController {
 
     private static final Logger log = LoggerFactory.getLogger(RfqController.class);

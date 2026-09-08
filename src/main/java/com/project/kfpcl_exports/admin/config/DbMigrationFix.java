@@ -52,6 +52,10 @@ public class DbMigrationFix implements CommandLineRunner {
         // 6. Fix buyer_rfqs.buyer_id to VARCHAR(64) to allow storing UUID string without truncation
         dropForeignKeyOnColumn("buyer_rfqs", "buyer_id");
         modifyColumnType("buyer_rfqs", "buyer_id", "VARCHAR(64)");
+        dropForeignKeyOnColumn("rfq_responses", "rfq_id");
+        dropForeignKeyOnColumn("notifications", "user_id");
+        dropForeignKeysReferencingTable("rfq_responses", "admin_rfqs");
+        dropForeignKeysReferencingTable("rfq_responses", "rfqs");
 
         // 7. Backfill any missing buyer_users referenced by legacy buyer_rfqs (e.g. id = 6)
         try {

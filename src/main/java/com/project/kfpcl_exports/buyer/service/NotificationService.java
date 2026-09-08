@@ -26,6 +26,7 @@ public class NotificationService {
     /**
      * Creates and persists a notification for a user.
      */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public Notification createNotification(
             User user,
             NotificationType type,
