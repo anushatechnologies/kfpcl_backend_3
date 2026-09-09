@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController("buyerCategoryController")
-@RequestMapping("/api/buyer/categories")
+@RequestMapping({"/api/buyer/categories", "/api/buyer/category"})
 public class CategoryController {
 
     @Autowired

@@ -35,7 +35,14 @@ public class NotificationController {
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest
     ) {
-        User buyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
+        User buyer = null;
+        try {
+            buyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
+        } catch (Exception ignored) {}
+
+        if (buyer == null) {
+            return ResponseEntity.ok(ApiResponse.ok("No notifications found for guest", java.util.Collections.emptyList()));
+        }
         List<NotificationResponseDto> response = notificationService.getBuyerNotifications(buyer);
         return ResponseEntity.ok(ApiResponse.ok("Notifications fetched successfully", response));
     }
@@ -78,7 +85,14 @@ public class NotificationController {
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest
     ) {
-        User buyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
+        User buyer = null;
+        try {
+            buyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
+        } catch (Exception ignored) {}
+
+        if (buyer == null) {
+            return ResponseEntity.ok(ApiResponse.ok("Unread count fetched successfully", new UnreadCountResponse(0)));
+        }
         long count = notificationService.getUnreadCount(buyer);
         return ResponseEntity.ok(ApiResponse.ok("Unread count fetched successfully", new UnreadCountResponse(count)));
     }

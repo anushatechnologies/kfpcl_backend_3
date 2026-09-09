@@ -170,6 +170,9 @@ public class BuyerAuthHelper {
             if (clean10.length() == 10) {
                 newUser.setPhoneNumber(clean10);
             }
+            newUser.setCity("India");
+            newUser.setState("India");
+            newUser.setCompanyName("KFPCL Buyer");
             newUser.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
             newUser.setRole("ROLE_USER");
             newUser.setEnabled(true);
@@ -183,6 +186,9 @@ public class BuyerAuthHelper {
             User buyer = new User();
             buyer.setEmail("buyer1@kfpcl.com");
             buyer.setName("Buyer One");
+            buyer.setCity("India");
+            buyer.setState("India");
+            buyer.setCompanyName("KFPCL Buyer");
             buyer.setPassword(passwordEncoder.encode("buyer123"));
             buyer.setRole("ROLE_USER");
             buyer.setEnabled(true);

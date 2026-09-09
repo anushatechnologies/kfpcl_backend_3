@@ -9,13 +9,26 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController("buyerSubcategoryController")
-@RequestMapping("/api/buyer/subcategories")
+@RequestMapping({"/api/buyer/subcategories", "/api/buyer/sub-categories"})
 public class SubcategoryController {
 
     @Autowired
     private CategoryService categoryService;
 
-    @GetMapping("/{categoryId}")
+    @GetMapping
+    public ResponseEntity<List<Subcategory>> getAllSubcategories(
+            @RequestParam(name = "categoryId", required = false) Long categoryId
+    ) {
+        if (categoryId != null) {
+            return ResponseEntity.ok(categoryService.getSubcategoriesByCategoryId(categoryId));
+        }
+        return ResponseEntity.ok(categoryService.getAllSubcategories());
+    }
+
+    @GetMapping({
+            "/{categoryId}",
+            "/category/{categoryId}"
+    })
     public ResponseEntity<List<Subcategory>> getSubcategoriesByCategoryId(@PathVariable Long categoryId) {
         return ResponseEntity.ok(categoryService.getSubcategoriesByCategoryId(categoryId));
     }

@@ -116,11 +116,17 @@ public class BuyerRfqController {
         else if (phoneNumber != null && !phoneNumber.isBlank()) targetIdentifier = phoneNumber;
         else if (phone != null && !phone.isBlank()) targetIdentifier = phone;
 
-        User buyer;
-        if (targetIdentifier != null && !targetIdentifier.isBlank()) {
-            buyer = buyerAuthHelper.resolveFromIdentifier(targetIdentifier);
-        } else {
-            buyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
+        User buyer = null;
+        try {
+            if (targetIdentifier != null && !targetIdentifier.isBlank()) {
+                buyer = buyerAuthHelper.resolveFromIdentifier(targetIdentifier);
+            } else {
+                buyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
+            }
+        } catch (Exception ignored) {}
+
+        if (buyer == null) {
+            return ResponseEntity.ok(ApiResponse.ok("No RFQs found for guest", Page.empty()));
         }
         Pageable pageable = PageRequest.of(page, size);
         Page<BuyerRfqResponseDto> responses = rfqService.getBuyerRfqs(buyer, status, pageable);
