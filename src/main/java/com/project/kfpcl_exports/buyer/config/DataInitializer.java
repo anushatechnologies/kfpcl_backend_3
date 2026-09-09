@@ -54,7 +54,7 @@ public class DataInitializer implements CommandLineRunner {
         User buyer = userRepository.findByEmail("buyer1@kfpcl.com").orElseGet(() -> {
             User b = User.builder()
                     .email("buyer1@kfpcl.com")
-                    .name("Buyer One")
+                    .fullName("Buyer One")
                     .phoneNumber("9876543210")
                     .password(passwordEncoder.encode("buyer123"))
                     .role("ROLE_USER")

@@ -40,7 +40,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
         if (token != null && !token.isBlank() && SecurityContextHolder.getContext().getAuthentication() == null) {
             AccessTokenData data = tokenService.validateAccessToken(token);
             if (data != null) {
-                UserPrincipal principal = new UserPrincipal(data.getUserId(), data.getPhoneNumber(), token);
+                UserPrincipal principal = new UserPrincipal(data.getUserId(), data.getBuyerId(), data.getPhoneNumber(), token);
 
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         principal,

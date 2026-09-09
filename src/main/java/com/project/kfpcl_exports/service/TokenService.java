@@ -29,19 +29,55 @@ public class TokenService {
     }
 
     @Getter
-    @AllArgsConstructor
     public static class AccessTokenData {
         private final Long userId;
+        private final String buyerId;
         private final String phoneNumber;
         private final Instant expiresAt;
+
+        public AccessTokenData(Long userId, String phoneNumber, Instant expiresAt) {
+            this.userId = userId;
+            this.buyerId = userId != null ? String.valueOf(userId) : null;
+            this.phoneNumber = phoneNumber;
+            this.expiresAt = expiresAt;
+        }
+
+        public AccessTokenData(String buyerId, String phoneNumber, Instant expiresAt) {
+            this.buyerId = buyerId;
+            Long parsedId = null;
+            try {
+                parsedId = Long.parseLong(buyerId);
+            } catch (Exception ignored) {}
+            this.userId = parsedId;
+            this.phoneNumber = phoneNumber;
+            this.expiresAt = expiresAt;
+        }
     }
 
     @Getter
-    @AllArgsConstructor
     public static class RefreshTokenData {
         private final Long userId;
+        private final String buyerId;
         private final String phoneNumber;
         private final Instant expiresAt;
+
+        public RefreshTokenData(Long userId, String phoneNumber, Instant expiresAt) {
+            this.userId = userId;
+            this.buyerId = userId != null ? String.valueOf(userId) : null;
+            this.phoneNumber = phoneNumber;
+            this.expiresAt = expiresAt;
+        }
+
+        public RefreshTokenData(String buyerId, String phoneNumber, Instant expiresAt) {
+            this.buyerId = buyerId;
+            Long parsedId = null;
+            try {
+                parsedId = Long.parseLong(buyerId);
+            } catch (Exception ignored) {}
+            this.userId = parsedId;
+            this.phoneNumber = phoneNumber;
+            this.expiresAt = expiresAt;
+        }
     }
 
     public String createVerificationToken(String phoneNumber) {
@@ -112,10 +148,24 @@ public class TokenService {
         return token;
     }
 
+    public String createAccessToken(String buyerId, String phoneNumber) {
+        String token = "acc_tok_" + UUID.randomUUID().toString().replace("-", "");
+        Instant expiresAt = Instant.now().plusSeconds(ACCESS_TOKEN_TTL_SECONDS);
+        accessTokens.put(token, new AccessTokenData(buyerId, phoneNumber, expiresAt));
+        return token;
+    }
+
     public String createRefreshToken(Long userId, String phoneNumber) {
         String token = "ref_tok_" + UUID.randomUUID().toString().replace("-", "");
         Instant expiresAt = Instant.now().plusSeconds(REFRESH_TOKEN_TTL_SECONDS);
         refreshTokens.put(token, new RefreshTokenData(userId, phoneNumber, expiresAt));
+        return token;
+    }
+
+    public String createRefreshToken(String buyerId, String phoneNumber) {
+        String token = "ref_tok_" + UUID.randomUUID().toString().replace("-", "");
+        Instant expiresAt = Instant.now().plusSeconds(REFRESH_TOKEN_TTL_SECONDS);
+        refreshTokens.put(token, new RefreshTokenData(buyerId, phoneNumber, expiresAt));
         return token;
     }
 

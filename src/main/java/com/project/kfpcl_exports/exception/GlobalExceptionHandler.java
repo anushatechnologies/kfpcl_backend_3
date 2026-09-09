@@ -3,9 +3,11 @@ package com.project.kfpcl_exports.exception;
 import com.project.kfpcl_exports.dto.AuthDTOs.GenericResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.stereotype.Component;
 
 import java.util.stream.Collectors;
@@ -13,6 +15,36 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 @Component("mainGlobalExceptionHandler")
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<GenericResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(
+                GenericResponse.builder()
+                        .success(false)
+                        .message("File upload exceeds the maximum allowed limit (Strict: 1 MB for PAN, 500 KB for GSTIN)")
+                        .build()
+        );
+    }
+
+    @ExceptionHandler(BindException.class)
+    public ResponseEntity<GenericResponse> handleBindException(BindException ex) {
+        String errorMsg = ex.getBindingResult().getFieldErrors().stream()
+                .map(err -> err.getField() + ": " + err.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                GenericResponse.builder().success(false).message(errorMsg).build()
+        );
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<GenericResponse> handleValidationErrors(MethodArgumentNotValidException ex) {
+        String errorMsg = ex.getBindingResult().getFieldErrors().stream()
+                .map(err -> err.getField() + ": " + err.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                GenericResponse.builder().success(false).message(errorMsg).build()
+        );
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<GenericResponse> handleIllegalArgument(IllegalArgumentException ex) {
@@ -32,16 +64,6 @@ public class GlobalExceptionHandler {
         }
         return ResponseEntity.status(status).body(
                 GenericResponse.builder().success(false).message(ex.getMessage()).build()
-        );
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<GenericResponse> handleValidationErrors(MethodArgumentNotValidException ex) {
-        String errorMsg = ex.getBindingResult().getFieldErrors().stream()
-                .map(err -> err.getField() + ": " + err.getDefaultMessage())
-                .collect(Collectors.joining(", "));
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                GenericResponse.builder().success(false).message(errorMsg).build()
         );
     }
 

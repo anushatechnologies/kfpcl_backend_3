@@ -443,6 +443,7 @@ public class AuthDTOs {
         }
     }
 
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     public static class TokenResponse {
         private String accessToken;
         private String refreshToken;
@@ -545,8 +546,10 @@ public class AuthDTOs {
         }
     }
 
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     public static class UserProfileResponse {
         private Long id;
+        private String buyerId;
         private String phoneNumber;
         private String fullName;
         private String email;
@@ -554,6 +557,11 @@ public class AuthDTOs {
         private String businessType;
         private String state;
         private String city;
+        private String status;
+        private String panNumber;
+        private String panCardUrl;
+        private String gstin;
+        private String gstinPhotoUrl;
 
         @JsonProperty("isVerified")
         private Boolean isVerified;
@@ -582,6 +590,8 @@ public class AuthDTOs {
 
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
+        public String getBuyerId() { return buyerId; }
+        public void setBuyerId(String buyerId) { this.buyerId = buyerId; }
         public String getPhoneNumber() { return phoneNumber; }
         public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
         public String getFullName() { return fullName; }
@@ -596,6 +606,16 @@ public class AuthDTOs {
         public void setState(String state) { this.state = state; }
         public String getCity() { return city; }
         public void setCity(String city) { this.city = city; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getPanNumber() { return panNumber; }
+        public void setPanNumber(String panNumber) { this.panNumber = panNumber; }
+        public String getPanCardUrl() { return panCardUrl; }
+        public void setPanCardUrl(String panCardUrl) { this.panCardUrl = panCardUrl; }
+        public String getGstin() { return gstin; }
+        public void setGstin(String gstin) { this.gstin = gstin; }
+        public String getGstinPhotoUrl() { return gstinPhotoUrl; }
+        public void setGstinPhotoUrl(String gstinPhotoUrl) { this.gstinPhotoUrl = gstinPhotoUrl; }
         public Boolean getIsVerified() { return isVerified; }
         public void setIsVerified(Boolean isVerified) { this.isVerified = isVerified; }
         public Boolean getIsActive() { return isActive; }
@@ -608,10 +628,11 @@ public class AuthDTOs {
         public static UserProfileResponseBuilder builder() { return new UserProfileResponseBuilder(); }
         public static class UserProfileResponseBuilder {
             private Long id;
-            private String phoneNumber, fullName, email, companyName, businessType, state, city;
+            private String buyerId, phoneNumber, fullName, email, companyName, businessType, state, city, status, panNumber, panCardUrl, gstin, gstinPhotoUrl;
             private Boolean isVerified, isActive;
             private LocalDateTime createdAt, updatedAt;
             public UserProfileResponseBuilder id(Long v) { id = v; return this; }
+            public UserProfileResponseBuilder buyerId(String v) { buyerId = v; return this; }
             public UserProfileResponseBuilder phoneNumber(String v) { phoneNumber = v; return this; }
             public UserProfileResponseBuilder fullName(String v) { fullName = v; return this; }
             public UserProfileResponseBuilder email(String v) { email = v; return this; }
@@ -619,11 +640,25 @@ public class AuthDTOs {
             public UserProfileResponseBuilder businessType(String v) { businessType = v; return this; }
             public UserProfileResponseBuilder state(String v) { state = v; return this; }
             public UserProfileResponseBuilder city(String v) { city = v; return this; }
+            public UserProfileResponseBuilder status(String v) { status = v; return this; }
+            public UserProfileResponseBuilder panNumber(String v) { panNumber = v; return this; }
+            public UserProfileResponseBuilder panCardUrl(String v) { panCardUrl = v; return this; }
+            public UserProfileResponseBuilder gstin(String v) { gstin = v; return this; }
+            public UserProfileResponseBuilder gstinPhotoUrl(String v) { gstinPhotoUrl = v; return this; }
             public UserProfileResponseBuilder isVerified(Boolean v) { isVerified = v; return this; }
             public UserProfileResponseBuilder isActive(Boolean v) { isActive = v; return this; }
             public UserProfileResponseBuilder createdAt(LocalDateTime v) { createdAt = v; return this; }
             public UserProfileResponseBuilder updatedAt(LocalDateTime v) { updatedAt = v; return this; }
-            public UserProfileResponse build() { return new UserProfileResponse(id, phoneNumber, fullName, email, companyName, businessType, state, city, isVerified, isActive, createdAt, updatedAt); }
+            public UserProfileResponse build() {
+                UserProfileResponse r = new UserProfileResponse(id, phoneNumber, fullName, email, companyName, businessType, state, city, isVerified, isActive, createdAt, updatedAt);
+                r.setBuyerId(buyerId);
+                r.setStatus(status);
+                r.setPanNumber(panNumber);
+                r.setPanCardUrl(panCardUrl);
+                r.setGstin(gstin);
+                r.setGstinPhotoUrl(gstinPhotoUrl);
+                return r;
+            }
         }
     }
 

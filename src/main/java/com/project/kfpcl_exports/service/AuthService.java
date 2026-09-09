@@ -48,8 +48,48 @@ public class AuthService {
         String digits = trimmed.replaceAll("[^0-9]", "");
         String clean10 = digits.length() > 10 ? digits.substring(digits.length() - 10) : digits;
 
+        // 1. First Priority: Check buyer_users table
+        if (buyerUserRepository != null) {
+            try {
+                if (!clean10.isEmpty()) {
+                    Optional<com.project.kfpcl_exports.buyer.model.User> bOpt = buyerUserRepository.findByPhoneNumber(clean10);
+                    if (bOpt.isPresent()) {
+                        com.project.kfpcl_exports.buyer.model.User bu = bOpt.get();
+                        User u = User.builder()
+                                .phoneNumber(bu.getPhoneNumber())
+                                .fullName(bu.getFullName())
+                                .email(bu.getEmail())
+                                .companyName(bu.getCompanyName() != null ? bu.getCompanyName() : "KFPCL Buyer")
+                                .businessType(bu.getBusinessType() != null ? bu.getBusinessType().name() : "WHOLESALER")
+                                .state(bu.getState() != null ? bu.getState() : "Telangana")
+                                .city(bu.getCity() != null ? bu.getCity() : "Hyderabad")
+                                .isVerified(true)
+                                .isActive(bu.isEnabled())
+                                .build();
+                        return Optional.of(u);
+                    }
+                }
+                Optional<com.project.kfpcl_exports.buyer.model.User> bOptTrim = buyerUserRepository.findByPhoneNumber(trimmed);
+                if (bOptTrim.isPresent()) {
+                    com.project.kfpcl_exports.buyer.model.User bu = bOptTrim.get();
+                    User u = User.builder()
+                            .phoneNumber(bu.getPhoneNumber())
+                            .fullName(bu.getFullName())
+                            .email(bu.getEmail())
+                            .companyName(bu.getCompanyName() != null ? bu.getCompanyName() : "KFPCL Buyer")
+                            .businessType(bu.getBusinessType() != null ? bu.getBusinessType().name() : "WHOLESALER")
+                            .state(bu.getState() != null ? bu.getState() : "Telangana")
+                            .city(bu.getCity() != null ? bu.getCity() : "Hyderabad")
+                            .isVerified(true)
+                            .isActive(bu.isEnabled())
+                            .build();
+                    return Optional.of(u);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // 2. Fallback: Check users table if it exists
         try {
-            // 1. Direct match on trimmed
             try {
                 Optional<User> opt = userRepository.findByPhoneNumber(trimmed);
                 if (opt.isPresent()) return opt;
@@ -71,54 +111,6 @@ public class AuthService {
                     if (opt.isPresent()) return opt;
                 } catch (Exception ignored) {}
             }
-
-            // 2. Scan all users in users table matching clean10 (handles non-unique safely)
-            if (clean10.length() == 10) {
-                try {
-                    List<User> allUsers = userRepository.findAll();
-                    for (User u : allUsers) {
-                        if (u.getPhoneNumber() != null) {
-                            String uDigits = u.getPhoneNumber().replaceAll("[^0-9]", "");
-                            String u10 = uDigits.length() > 10 ? uDigits.substring(uDigits.length() - 10) : uDigits;
-                            if (clean10.equals(u10)) {
-                                return Optional.of(u);
-                            }
-                        }
-                    }
-                } catch (Exception ignored) {}
-            }
-
-            // 3. Check legacy buyer_users table and bridge to main users if present
-            if (clean10.length() == 10 && buyerUserRepository != null) {
-                try {
-                    List<com.project.kfpcl_exports.buyer.model.User> allBuyers = buyerUserRepository.findAll();
-                    for (com.project.kfpcl_exports.buyer.model.User bu : allBuyers) {
-                        String bPhone = bu.getPhoneNumber() != null ? bu.getPhoneNumber().replaceAll("[^0-9]", "") : "";
-                        if (bPhone.length() > 10) bPhone = bPhone.substring(bPhone.length() - 10);
-                        boolean match = clean10.equals(bPhone)
-                                || (bu.getEmail() != null && bu.getEmail().contains(clean10))
-                                || (bu.getName() != null && bu.getName().contains(clean10));
-                        if (match) {
-                            User bridgeUser = User.builder()
-                                    .phoneNumber(clean10)
-                                    .fullName(bu.getName() != null && !bu.getName().isBlank() ? bu.getName() : "Buyer " + clean10)
-                                    .email(bu.getEmail() != null && bu.getEmail().contains("@") ? bu.getEmail() : clean10 + "@kfpcl-buyer.com")
-                                    .companyName("KFPCL Buyer")
-                                    .businessType("Wholesaler")
-                                    .state("Telangana")
-                                    .city("Hyderabad")
-                                    .isVerified(true)
-                                    .isActive(true)
-                                    .build();
-                            try {
-                                return Optional.of(userRepository.save(bridgeUser));
-                            } catch (Exception ignored) {
-                                return Optional.of(bridgeUser);
-                            }
-                        }
-                    }
-                } catch (Exception ignored) {}
-            }
         } catch (Exception ignored) {}
 
         return Optional.empty();
@@ -126,10 +118,43 @@ public class AuthService {
 
     public CheckPhoneResponse checkPhone(String phoneNumber) {
         try {
-            Optional<User> userOpt = findUserAnywhere(phoneNumber);
+            String trimmed = phoneNumber != null ? phoneNumber.trim() : "";
+            String clean10 = trimmed.replaceAll("[^0-9]", "");
+            if (clean10.length() > 10) {
+                clean10 = clean10.substring(clean10.length() - 10);
+            }
+
+            boolean exists = false;
+            boolean isRegistered = false;
+
+            if (buyerUserRepository != null) {
+                if (!clean10.isEmpty()) {
+                    Optional<com.project.kfpcl_exports.buyer.model.User> bOpt = buyerUserRepository.findByPhoneNumber(clean10);
+                    if (bOpt.isPresent()) {
+                        exists = true;
+                        isRegistered = bOpt.get().isEnabled();
+                    }
+                }
+                if (!exists) {
+                    Optional<com.project.kfpcl_exports.buyer.model.User> bOpt = buyerUserRepository.findByPhoneNumber(trimmed);
+                    if (bOpt.isPresent()) {
+                        exists = true;
+                        isRegistered = bOpt.get().isEnabled();
+                    }
+                }
+            }
+
+            if (!exists) {
+                Optional<User> userOpt = findUserAnywhere(phoneNumber);
+                if (userOpt.isPresent()) {
+                    exists = true;
+                    isRegistered = Boolean.TRUE.equals(userOpt.get().getIsActive());
+                }
+            }
+
             return CheckPhoneResponse.builder()
-                    .exists(userOpt.isPresent())
-                    .isRegistered(userOpt.isPresent() && Boolean.TRUE.equals(userOpt.get().getIsActive()))
+                    .exists(exists)
+                    .isRegistered(isRegistered)
                     .success(true)
                     .build();
         } catch (Exception e) {
@@ -267,6 +292,31 @@ public class AuthService {
             return issueTokensAndSaveFcm(saved, request.getFcmToken());
         }
 
+        // Sync to buyer_users table
+        if (buyerUserRepository != null) {
+            try {
+                com.project.kfpcl_exports.buyer.enums.BusinessType bType = null;
+                try {
+                    bType = com.project.kfpcl_exports.buyer.enums.BusinessType.fromString(request.getBusinessType());
+                } catch (Exception ignored) {
+                    bType = com.project.kfpcl_exports.buyer.enums.BusinessType.WHOLESALER;
+                }
+                String bPhone = clean10.length() == 10 ? clean10 : phoneNumber;
+                java.util.Optional<com.project.kfpcl_exports.buyer.model.User> existingBuyer = buyerUserRepository.findByPhoneNumber(bPhone);
+                com.project.kfpcl_exports.buyer.model.User bUser = existingBuyer.orElseGet(() -> com.project.kfpcl_exports.buyer.model.User.builder().build());
+                bUser.setFullName(request.getFullName());
+                bUser.setPhoneNumber(bPhone);
+                bUser.setEmail(request.getEmail());
+                bUser.setCompanyName(request.getCompanyName());
+                bUser.setBusinessType(bType);
+                bUser.setState(request.getState());
+                bUser.setCity(request.getCity());
+                bUser.setEnabled(true);
+                bUser.setStatus("ACTIVE");
+                buyerUserRepository.save(bUser);
+            } catch (Exception ignored) {}
+        }
+
         User newUser = User.builder()
                 .phoneNumber(phoneNumber)
                 .fullName(request.getFullName())
@@ -279,7 +329,10 @@ public class AuthService {
                 .isActive(true)
                 .build();
 
-        User savedUser = userRepository.save(newUser);
+        User savedUser = newUser;
+        try {
+            savedUser = userRepository.save(newUser);
+        } catch (Exception ignored) {}
         return issueTokensAndSaveFcm(savedUser, request.getFcmToken());
     }
 
@@ -292,14 +345,55 @@ public class AuthService {
             throw new IllegalArgumentException("Invalid or expired OTP");
         }
 
-        Optional<User> userOpt = findUserAnywhere(phoneNumber);
-        User user = userOpt.orElseThrow(() -> new IllegalArgumentException("User not registered or account inactive"));
-        if (!Boolean.TRUE.equals(user.getIsActive())) {
-            user.setIsActive(true);
-            user = userRepository.save(user);
+        String clean10 = phoneNumber.replaceAll("[^0-9]", "");
+        if (clean10.length() > 10) {
+            clean10 = clean10.substring(clean10.length() - 10);
         }
 
-        return issueTokensAndSaveFcm(user, request.getFcmToken());
+        // 1. Check buyer_users table directly
+        com.project.kfpcl_exports.buyer.model.User buyer = null;
+        if (buyerUserRepository != null) {
+            if (!clean10.isEmpty()) {
+                buyer = buyerUserRepository.findByPhoneNumber(clean10).orElse(null);
+            }
+            if (buyer == null) {
+                buyer = buyerUserRepository.findByPhoneNumber(phoneNumber).orElse(null);
+            }
+        }
+
+        if (buyer != null) {
+            UserProfileResponse profile = UserProfileResponse.builder()
+                    .buyerId(buyer.getId())
+                    .phoneNumber(buyer.getPhoneNumber())
+                    .fullName(buyer.getFullName())
+                    .email(buyer.getEmail())
+                    .companyName(buyer.getCompanyName())
+                    .businessType(buyer.getBusinessType() != null ? buyer.getBusinessType().name() : null)
+                    .state(buyer.getState())
+                    .city(buyer.getCity())
+                    .status(buyer.getStatus())
+                    .panNumber(buyer.getPanNumber())
+                    .panCardUrl(buyer.getPanCardUrl())
+                    .gstin(buyer.getGstin())
+                    .gstinPhotoUrl(buyer.getGstinPhotoUrl())
+                    .isVerified(Boolean.TRUE.equals(buyer.isEnabled()))
+                    .isActive(buyer.isEnabled())
+                    .createdAt(buyer.getCreatedAt())
+                    .updatedAt(buyer.getUpdatedAt())
+                    .build();
+
+            return TokenResponse.builder()
+                    .user(profile)
+                    .build();
+        }
+
+        // 2. Fallback check for existing users
+        Optional<User> userOpt = findUserAnywhere(phoneNumber);
+        User user = userOpt.orElseThrow(() -> new IllegalArgumentException("Buyer not registered with phone number: " + phoneNumber + ". Please register first."));
+
+        return TokenResponse.builder()
+                .user(userService.mapToProfileResponse(user))
+                .build();
     }
 
     @Transactional
@@ -321,31 +415,61 @@ public class AuthService {
             clean10 = clean10.substring(clean10.length() - 10);
         }
 
-        Optional<User> userOpt = findUserAnywhere(phoneNumber);
-
-        User user;
-        if (userOpt.isPresent()) {
-            user = userOpt.get();
-            if (!Boolean.TRUE.equals(user.getIsActive())) {
-                user.setIsActive(true);
-                user = userRepository.save(user);
+        // 1. Look up directly in buyer_users (primary table)
+        com.project.kfpcl_exports.buyer.model.User buyer = null;
+        if (buyerUserRepository != null) {
+            if (!clean10.isEmpty()) {
+                buyer = buyerUserRepository.findByPhoneNumber(clean10).orElse(null);
             }
-        } else {
-            user = User.builder()
-                    .phoneNumber(!clean10.isEmpty() ? clean10 : phoneNumber)
-                    .fullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName() : "Buyer " + clean10)
-                    .email(request.getEmail() != null ? request.getEmail() : "")
-                    .companyName(request.getCompanyName() != null && !request.getCompanyName().isBlank() ? request.getCompanyName() : "KFPCL Buyer")
-                    .businessType(request.getBusinessType() != null && !request.getBusinessType().isBlank() ? request.getBusinessType() : "Wholesaler")
-                    .state(request.getState() != null && !request.getState().isBlank() ? request.getState() : "Telangana")
-                    .city(request.getCity() != null && !request.getCity().isBlank() ? request.getCity() : "Hyderabad")
-                    .isVerified(true)
-                    .isActive(true)
-                    .build();
-            user = userRepository.save(user);
+            if (buyer == null) {
+                buyer = buyerUserRepository.findByPhoneNumber(phoneNumber).orElse(null);
+            }
         }
 
-        return issueTokensAndSaveFcm(user, request.getFcmToken());
+        if (buyer != null) {
+            UserProfileResponse profile = UserProfileResponse.builder()
+                    .buyerId(buyer.getId())
+                    .phoneNumber(buyer.getPhoneNumber())
+                    .fullName(buyer.getFullName())
+                    .email(buyer.getEmail())
+                    .companyName(buyer.getCompanyName())
+                    .businessType(buyer.getBusinessType() != null ? buyer.getBusinessType().name() : null)
+                    .state(buyer.getState())
+                    .city(buyer.getCity())
+                    .status(buyer.getStatus())
+                    .panNumber(buyer.getPanNumber())
+                    .panCardUrl(buyer.getPanCardUrl())
+                    .gstin(buyer.getGstin())
+                    .gstinPhotoUrl(buyer.getGstinPhotoUrl())
+                    .isVerified(Boolean.TRUE.equals(buyer.isEnabled()))
+                    .isActive(buyer.isEnabled())
+                    .createdAt(buyer.getCreatedAt())
+                    .updatedAt(buyer.getUpdatedAt())
+                    .build();
+
+            return TokenResponse.builder()
+                    .user(profile)
+                    .build();
+        }
+
+        // 2. Fallback check for existing users
+        Optional<User> userOpt = findUserAnywhere(phoneNumber);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            if (request.getFcmToken() != null && !request.getFcmToken().isBlank()) {
+                try {
+                    fcmTokenService.saveOrUpdateFcmToken(user.getId(), FcmTokenRequest.builder()
+                            .fcmToken(request.getFcmToken())
+                            .deviceType("ANDROID")
+                            .build());
+                } catch (Exception ignored) {}
+            }
+            return TokenResponse.builder()
+                    .user(userService.mapToProfileResponse(user))
+                    .build();
+        }
+
+        throw new IllegalArgumentException("Buyer not found with phone number: " + phoneNumber + ". Please register first.");
     }
 
     public TokenResponse refreshToken(RefreshTokenRequest request) {
