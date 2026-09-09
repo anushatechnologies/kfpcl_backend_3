@@ -68,12 +68,14 @@ public class AdminBuyerController {
 
         int totalElements = buyers.size();
 
+        List<Map<String, Object>> mappedList = buyers.stream().map(this::toBuyerMap).collect(Collectors.toList());
+
         if (page == null && size == null) {
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("success", true);
-            response.put("data", buyers);
-            response.put("buyers", buyers);
-            response.put("content", buyers);
+            response.put("data", mappedList);
+            response.put("buyers", mappedList);
+            response.put("content", mappedList);
             response.put("totalElements", totalElements);
             response.put("totalPages", 1);
             response.put("currentPage", 0);
@@ -86,7 +88,7 @@ public class AdminBuyerController {
         int totalPages = (int) Math.ceil((double) totalElements / s);
         int fromIndex = Math.min(p * s, totalElements);
         int toIndex = Math.min(fromIndex + s, totalElements);
-        List<User> paginatedList = buyers.subList(fromIndex, toIndex);
+        List<Map<String, Object>> paginatedList = mappedList.subList(fromIndex, toIndex);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("success", true);
@@ -99,6 +101,46 @@ public class AdminBuyerController {
         response.put("pageSize", s);
 
         return ResponseEntity.ok(response);
+    }
+
+    private String toViewUrl(String raw) {
+        if (raw == null || raw.isBlank()) return raw;
+        String trimmed = raw.trim();
+        if (trimmed.startsWith("s3://")) {
+            int slash = trimmed.indexOf('/', 5);
+            if (slash != -1) {
+                String key = trimmed.substring(slash + 1);
+                return "/api/media/view?key=" + key;
+            }
+        }
+        return trimmed;
+    }
+
+    private Map<String, Object> toBuyerMap(User b) {
+        if (b == null) return null;
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", b.getId());
+        map.put("fullName", b.getFullName());
+        map.put("name", b.getFullName());
+        map.put("phoneNumber", b.getPhoneNumber());
+        map.put("phone", b.getPhoneNumber());
+        map.put("email", b.getEmail());
+        map.put("companyName", b.getCompanyName());
+        map.put("businessType", b.getBusinessType());
+        map.put("state", b.getState());
+        map.put("city", b.getCity());
+        map.put("gstin", b.getGstin());
+        map.put("gstinPhotoUrl", toViewUrl(b.getGstinPhotoUrl()));
+        map.put("gstinPhotoS3Uri", b.getGstinPhotoUrl());
+        map.put("panNumber", b.getPanNumber());
+        map.put("panCardUrl", toViewUrl(b.getPanCardUrl()));
+        map.put("panCardS3Uri", b.getPanCardUrl());
+        map.put("status", b.getStatus());
+        map.put("enabled", b.isEnabled());
+        map.put("role", b.getRole());
+        map.put("createdAt", b.getCreatedAt());
+        map.put("updatedAt", b.getUpdatedAt());
+        return map;
     }
 
     /**
@@ -115,7 +157,7 @@ public class AdminBuyerController {
             User b = buyerOpt.get();
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("success", true);
-            response.put("data", b);
+            response.put("data", toBuyerMap(b));
             return ResponseEntity.ok(response);
         }
 

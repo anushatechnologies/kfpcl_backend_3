@@ -236,6 +236,14 @@ public class S3Service {
             return decoded.substring(decoded.indexOf(".amazonaws.com/") + 15);
         }
 
+        // If it's an s3:// URI like s3://bucket-name/buyer_documents/pan_123.jpg
+        if (decoded.startsWith("s3://")) {
+            int slashIndex = decoded.indexOf('/', 5);
+            if (slashIndex != -1) {
+                return decoded.substring(slashIndex + 1);
+            }
+        }
+
         // Remove any leading slash
         if (decoded.startsWith("/")) {
             decoded = decoded.substring(1);

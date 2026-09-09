@@ -36,6 +36,19 @@ public class CustomerController {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    private String toViewUrl(String raw) {
+        if (raw == null || raw.isBlank()) return raw;
+        String trimmed = raw.trim();
+        if (trimmed.startsWith("s3://")) {
+            int slash = trimmed.indexOf('/', 5);
+            if (slash != -1) {
+                String key = trimmed.substring(slash + 1);
+                return "/api/media/view?key=" + key;
+            }
+        }
+        return trimmed;
+    }
+
     @GetMapping
     public ResponseEntity<?> getAllCustomers(
             @RequestParam(required = false) Integer page,
@@ -209,14 +222,29 @@ public class CustomerController {
             }
 
             if (bu != null) {
+                if (bu.getCompanyName() != null && !bu.getCompanyName().isBlank()) {
+                    item.put("companyName", bu.getCompanyName());
+                }
+                if (bu.getFullName() != null && !bu.getFullName().isBlank()) {
+                    item.put("name", bu.getFullName());
+                    item.put("fullName", bu.getFullName());
+                }
+                if (bu.getCity() != null || bu.getState() != null) {
+                    String loc = (bu.getCity() != null ? bu.getCity() : "") + 
+                                 (bu.getCity() != null && bu.getState() != null ? ", " : "") + 
+                                 (bu.getState() != null ? bu.getState() : "");
+                    if (!loc.isBlank()) item.put("country", loc);
+                }
                 item.put("buyerId", bu.getId());
                 item.put("businessType", bu.getBusinessType() != null ? bu.getBusinessType().name() : null);
                 item.put("state", bu.getState());
                 item.put("city", bu.getCity());
                 item.put("gstin", bu.getGstin());
-                item.put("gstinPhotoUrl", bu.getGstinPhotoUrl());
+                item.put("gstinPhotoUrl", toViewUrl(bu.getGstinPhotoUrl()));
+                item.put("gstinPhotoS3Uri", bu.getGstinPhotoUrl());
                 item.put("panNumber", bu.getPanNumber());
-                item.put("panCardUrl", bu.getPanCardUrl());
+                item.put("panCardUrl", toViewUrl(bu.getPanCardUrl()));
+                item.put("panCardS3Uri", bu.getPanCardUrl());
                 item.put("enabled", bu.isEnabled());
             }
 
@@ -303,9 +331,11 @@ public class CustomerController {
             map.put("city", bu.getCity());
             map.put("country", bu.getCity() != null ? bu.getCity() + ", " + bu.getState() : (bu.getState() != null ? bu.getState() : "India"));
             map.put("gstin", bu.getGstin());
-            map.put("gstinPhotoUrl", bu.getGstinPhotoUrl());
+            map.put("gstinPhotoUrl", toViewUrl(bu.getGstinPhotoUrl()));
+            map.put("gstinPhotoS3Uri", bu.getGstinPhotoUrl());
             map.put("panNumber", bu.getPanNumber());
-            map.put("panCardUrl", bu.getPanCardUrl());
+            map.put("panCardUrl", toViewUrl(bu.getPanCardUrl()));
+            map.put("panCardS3Uri", bu.getPanCardUrl());
             map.put("status", bu.getStatus());
             map.put("enabled", bu.isEnabled());
             map.put("createdAt", bu.getCreatedAt());
