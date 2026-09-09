@@ -68,7 +68,7 @@ public class CustomerController {
                     .name(u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : "Buyer " + cleanPhone)
                     .email(u.getEmail() != null ? u.getEmail() : "")
                     .phone(u.getPhoneNumber())
-                    .companyName(u.getCompanyName() != null ? u.getCompanyName() : "KFPCL Buyer")
+                    .companyName(u.getCompanyName() != null && !u.getCompanyName().isBlank() ? u.getCompanyName() : "KFPCL Buyer")
                     .country(u.getCity() != null && !u.getCity().isBlank() ? u.getCity() + ", " + (u.getState() != null ? u.getState() : "India") : "India")
                     .status(Boolean.TRUE.equals(u.getIsActive()) ? "ACTIVE" : "INACTIVE")
                     .createdAt(u.getCreatedAt())
@@ -79,6 +79,7 @@ public class CustomerController {
         }
 
         // 2. Include registered buyers from buyer_users table
+        Map<Long, com.project.kfpcl_exports.buyer.model.User> buyerMetadataMap = new HashMap<>();
         try {
             List<com.project.kfpcl_exports.buyer.model.User> buyerUsers = buyerUserRepository.findAll();
             for (com.project.kfpcl_exports.buyer.model.User bu : buyerUsers) {
@@ -123,10 +124,10 @@ public class CustomerController {
                         nu.setPhoneNumber(!cleanPhone.isEmpty() ? cleanPhone : "9" + String.format("%09d", Math.abs((long) bu.getId().hashCode() % 1000000000L)));
                         nu.setFullName(bu.getName() != null && !bu.getName().isBlank() ? bu.getName() : "Buyer " + (!cleanPhone.isEmpty() ? cleanPhone : ""));
                         nu.setEmail(bu.getEmail());
-                        nu.setCompanyName("KFPCL Buyer");
-                        nu.setBusinessType("Buyer");
-                        nu.setState("India");
-                        nu.setCity("India");
+                        nu.setCompanyName(bu.getCompanyName() != null && !bu.getCompanyName().isBlank() ? bu.getCompanyName() : "KFPCL Buyer");
+                        nu.setBusinessType(bu.getBusinessType() != null ? bu.getBusinessType().name() : "WHOLESALER");
+                        nu.setState(bu.getState() != null ? bu.getState() : "India");
+                        nu.setCity(bu.getCity() != null ? bu.getCity() : "India");
                         nu.setIsActive(bu.isEnabled());
                         nu.setEnabled(bu.isEnabled());
                         nu.setIsVerified(true);
@@ -138,17 +139,25 @@ public class CustomerController {
                     }
                 }
 
+                String actualCompany = bu.getCompanyName() != null && !bu.getCompanyName().isBlank() ? bu.getCompanyName() : "KFPCL Buyer";
+                String location = bu.getCity() != null && !bu.getCity().isBlank() 
+                        ? bu.getCity() + ", " + (bu.getState() != null ? bu.getState() : "India") 
+                        : (bu.getState() != null ? bu.getState() : "India");
+
                 Customer c = Customer.builder()
                         .id(customerId)
                         .name(bu.getName() != null && !bu.getName().isBlank() ? bu.getName() : "Buyer " + cleanPhone)
                         .email(bu.getEmail() != null ? bu.getEmail() : "")
                         .phone(!cleanPhone.isEmpty() ? cleanPhone : bu.getPhoneNumber())
-                        .companyName("KFPCL Buyer")
-                        .country("India")
+                        .companyName(actualCompany)
+                        .country(location)
                         .status(bu.isEnabled() ? "ACTIVE" : "INACTIVE")
                         .createdAt(bu.getCreatedAt() != null ? bu.getCreatedAt() : java.time.LocalDateTime.now())
                         .build();
                 result.add(c);
+                if (customerId != null) {
+                    buyerMetadataMap.put(customerId, bu);
+                }
                 if (!cleanPhone.isEmpty()) existingPhones.add(cleanPhone);
                 if (!buEmail.isEmpty()) existingEmails.add(buEmail);
             }
@@ -175,19 +184,58 @@ public class CustomerController {
                     .collect(Collectors.toList());
         }
 
-        // If no pagination requested, return raw array (100% backward compatible)
+        // Map to enriched DTOs so all buyer fields are visible
+        List<Map<String, Object>> enrichedList = new ArrayList<>();
+        for (Customer c : result) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", c.getId());
+            item.put("name", c.getName());
+            item.put("fullName", c.getName());
+            item.put("email", c.getEmail());
+            item.put("phone", c.getPhone());
+            item.put("phoneNumber", c.getPhone());
+            item.put("companyName", c.getCompanyName());
+            item.put("country", c.getCountry());
+            item.put("status", c.getStatus());
+            item.put("createdAt", c.getCreatedAt());
+
+            com.project.kfpcl_exports.buyer.model.User bu = buyerMetadataMap.get(c.getId());
+            if (bu == null && c.getPhone() != null) {
+                String digits = c.getPhone().replaceAll("[^0-9]", "");
+                String clean10 = digits.length() > 10 ? digits.substring(digits.length() - 10) : digits;
+                if (!clean10.isEmpty()) {
+                    bu = buyerUserRepository.findByPhoneNumber(clean10).orElse(null);
+                }
+            }
+
+            if (bu != null) {
+                item.put("buyerId", bu.getId());
+                item.put("businessType", bu.getBusinessType() != null ? bu.getBusinessType().name() : null);
+                item.put("state", bu.getState());
+                item.put("city", bu.getCity());
+                item.put("gstin", bu.getGstin());
+                item.put("gstinPhotoUrl", bu.getGstinPhotoUrl());
+                item.put("panNumber", bu.getPanNumber());
+                item.put("panCardUrl", bu.getPanCardUrl());
+                item.put("enabled", bu.isEnabled());
+            }
+
+            enrichedList.add(item);
+        }
+
+        // If no pagination requested, return raw array
         if (page == null && size == null) {
-            return ResponseEntity.ok(result);
+            return ResponseEntity.ok(enrichedList);
         }
 
         // Apply pagination
         int p = page != null ? Math.max(0, page) : 0;
         int s = size != null && size > 0 ? size : 10;
-        int totalElements = result.size();
+        int totalElements = enrichedList.size();
         int totalPages = (int) Math.ceil((double) totalElements / s);
         int fromIndex = Math.min(p * s, totalElements);
         int toIndex = Math.min(fromIndex + s, totalElements);
-        List<Customer> paginatedList = result.subList(fromIndex, toIndex);
+        List<Map<String, Object>> paginatedList = enrichedList.subList(fromIndex, toIndex);
 
         Map<String, Object> response = new HashMap<>();
         response.put("content", paginatedList);
@@ -202,24 +250,70 @@ public class CustomerController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Customer> getCustomerById(@PathVariable Long id) {
-        Optional<Customer> cOpt = customerRepository.findById(id);
-        if (cOpt.isPresent()) {
-            return ResponseEntity.ok(cOpt.get());
+    public ResponseEntity<?> getCustomerById(@PathVariable String id) {
+        Long longId = null;
+        try {
+            longId = Long.parseLong(id);
+        } catch (NumberFormatException ignored) {}
+
+        if (longId != null) {
+            Optional<Customer> cOpt = customerRepository.findById(longId);
+            if (cOpt.isPresent()) {
+                return ResponseEntity.ok(cOpt.get());
+            }
+            Optional<User> uOpt = userRepository.findById(longId);
+            if (uOpt.isPresent()) {
+                User u = uOpt.get();
+                Map<String, Object> map = new LinkedHashMap<>();
+                map.put("id", u.getId());
+                map.put("name", u.getFullName());
+                map.put("fullName", u.getFullName());
+                map.put("email", u.getEmail());
+                map.put("phone", u.getPhoneNumber());
+                map.put("phoneNumber", u.getPhoneNumber());
+                map.put("companyName", u.getCompanyName());
+                map.put("businessType", u.getBusinessType());
+                map.put("state", u.getState());
+                map.put("city", u.getCity());
+                map.put("country", u.getCity() != null ? u.getCity() + ", " + u.getState() : "India");
+                map.put("status", Boolean.TRUE.equals(u.getIsActive()) ? "ACTIVE" : "INACTIVE");
+                map.put("createdAt", u.getCreatedAt());
+                return ResponseEntity.ok(map);
+            }
         }
-        return userRepository.findById(id)
-                .map(u -> Customer.builder()
-                        .id(u.getId())
-                        .name(u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName() : "Buyer " + u.getPhoneNumber())
-                        .email(u.getEmail() != null ? u.getEmail() : "")
-                        .phone(u.getPhoneNumber())
-                        .companyName(u.getCompanyName() != null ? u.getCompanyName() : "KFPCL Buyer")
-                        .country(u.getCity() != null && !u.getCity().isBlank() ? u.getCity() + ", " + (u.getState() != null ? u.getState() : "India") : "India")
-                        .status(Boolean.TRUE.equals(u.getIsActive()) ? "ACTIVE" : "INACTIVE")
-                        .createdAt(u.getCreatedAt())
-                        .build())
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+
+        // Check buyer_users table by UUID or phone
+        Optional<com.project.kfpcl_exports.buyer.model.User> buOpt = buyerUserRepository.findById(id);
+        if (buOpt.isEmpty()) {
+            buOpt = buyerUserRepository.findByPhoneNumber(id);
+        }
+        if (buOpt.isPresent()) {
+            com.project.kfpcl_exports.buyer.model.User bu = buOpt.get();
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("id", bu.getId());
+            map.put("buyerId", bu.getId());
+            map.put("name", bu.getFullName());
+            map.put("fullName", bu.getFullName());
+            map.put("email", bu.getEmail());
+            map.put("phone", bu.getPhoneNumber());
+            map.put("phoneNumber", bu.getPhoneNumber());
+            map.put("companyName", bu.getCompanyName());
+            map.put("businessType", bu.getBusinessType() != null ? bu.getBusinessType().name() : null);
+            map.put("state", bu.getState());
+            map.put("city", bu.getCity());
+            map.put("country", bu.getCity() != null ? bu.getCity() + ", " + bu.getState() : (bu.getState() != null ? bu.getState() : "India"));
+            map.put("gstin", bu.getGstin());
+            map.put("gstinPhotoUrl", bu.getGstinPhotoUrl());
+            map.put("panNumber", bu.getPanNumber());
+            map.put("panCardUrl", bu.getPanCardUrl());
+            map.put("status", bu.getStatus());
+            map.put("enabled", bu.isEnabled());
+            map.put("createdAt", bu.getCreatedAt());
+            map.put("updatedAt", bu.getUpdatedAt());
+            return ResponseEntity.ok(map);
+        }
+
+        return ResponseEntity.notFound().build();
     }
 
     @PutMapping("/{id}")
@@ -262,31 +356,49 @@ public class CustomerController {
     }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<Customer> updateCustomerStatus(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+    public ResponseEntity<?> updateCustomerStatus(@PathVariable String id, @RequestBody Map<String, String> payload) {
         String newStatus = payload.getOrDefault("status", "ACTIVE");
-        Optional<Customer> cOpt = customerRepository.findById(id);
-        if (cOpt.isPresent()) {
-            Customer c = cOpt.get();
-            c.setStatus(newStatus);
-            Customer updated = customerRepository.save(c);
-            return ResponseEntity.ok(updated);
+        Long longId = null;
+        try {
+            longId = Long.parseLong(id);
+        } catch (NumberFormatException ignored) {}
+
+        if (longId != null) {
+            Optional<Customer> cOpt = customerRepository.findById(longId);
+            if (cOpt.isPresent()) {
+                Customer c = cOpt.get();
+                c.setStatus(newStatus);
+                Customer updated = customerRepository.save(c);
+                return ResponseEntity.ok(updated);
+            }
+
+            Optional<User> uOpt = userRepository.findById(longId);
+            if (uOpt.isPresent()) {
+                User u = uOpt.get();
+                u.setIsActive("ACTIVE".equalsIgnoreCase(newStatus));
+                User updatedUser = userRepository.save(u);
+                return ResponseEntity.ok(Customer.builder()
+                        .id(updatedUser.getId())
+                        .name(updatedUser.getFullName())
+                        .email(updatedUser.getEmail())
+                        .phone(updatedUser.getPhoneNumber())
+                        .companyName(updatedUser.getCompanyName())
+                        .country(updatedUser.getCity() != null ? updatedUser.getCity() + ", " + updatedUser.getState() : "India")
+                        .status(Boolean.TRUE.equals(updatedUser.getIsActive()) ? "ACTIVE" : "INACTIVE")
+                        .createdAt(updatedUser.getCreatedAt())
+                        .build());
+            }
         }
 
-        Optional<User> uOpt = userRepository.findById(id);
-        if (uOpt.isPresent()) {
-            User u = uOpt.get();
-            u.setIsActive("ACTIVE".equalsIgnoreCase(newStatus));
-            User updatedUser = userRepository.save(u);
-            return ResponseEntity.ok(Customer.builder()
-                    .id(updatedUser.getId())
-                    .name(updatedUser.getFullName())
-                    .email(updatedUser.getEmail())
-                    .phone(updatedUser.getPhoneNumber())
-                    .companyName(updatedUser.getCompanyName())
-                    .country(updatedUser.getCity() != null ? updatedUser.getCity() + ", " + updatedUser.getState() : "India")
-                    .status(Boolean.TRUE.equals(updatedUser.getIsActive()) ? "ACTIVE" : "INACTIVE")
-                    .createdAt(updatedUser.getCreatedAt())
-                    .build());
+        // Check buyer_users
+        Optional<com.project.kfpcl_exports.buyer.model.User> buOpt = buyerUserRepository.findById(id);
+        if (buOpt.isEmpty()) buOpt = buyerUserRepository.findByPhoneNumber(id);
+        if (buOpt.isPresent()) {
+            com.project.kfpcl_exports.buyer.model.User bu = buOpt.get();
+            bu.setStatus(newStatus);
+            bu.setEnabled("ACTIVE".equalsIgnoreCase(newStatus) || "VERIFIED".equalsIgnoreCase(newStatus));
+            buyerUserRepository.save(bu);
+            return ResponseEntity.ok(bu);
         }
 
         return ResponseEntity.notFound().build();
@@ -294,39 +406,45 @@ public class CustomerController {
 
     @Transactional
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteCustomer(@PathVariable Long id) {
-        if (customerRepository.existsById(id)) {
-            customerRepository.deleteById(id);
+    public ResponseEntity<Map<String, Object>> deleteCustomer(@PathVariable String id) {
+        Long longId = null;
+        try {
+            longId = Long.parseLong(id);
+        } catch (NumberFormatException ignored) {}
+
+        if (longId != null && customerRepository.existsById(longId)) {
+            customerRepository.deleteById(longId);
             return ResponseEntity.ok(Map.of("message", "Customer deleted", "success", true));
         }
-        if (userRepository.existsById(id)) {
-            String idStr = String.valueOf(id);
+
+        if (longId != null && userRepository.existsById(longId)) {
+            String idStr = String.valueOf(longId);
             // 1. Delete associated FCM tokens
             try {
-                jdbcTemplate.update("DELETE FROM fcm_tokens WHERE user_id = ?", id);
+                jdbcTemplate.update("DELETE FROM fcm_tokens WHERE user_id = ?", longId);
             } catch (Exception e) {
-                log.warn("Could not delete fcm_tokens for user {}: {}", id, e.getMessage());
+                log.warn("Could not delete fcm_tokens for user {}: {}", longId, e.getMessage());
             }
 
             // 2. Delete associated addresses
             try {
-                jdbcTemplate.update("DELETE FROM addresses WHERE user_id = ?", id);
+                jdbcTemplate.update("DELETE FROM addresses WHERE user_id = ?", longId);
             } catch (Exception e) {
-                log.warn("Could not delete addresses for user {}: {}", id, e.getMessage());
+                log.warn("Could not delete addresses for user {}: {}", longId, e.getMessage());
             }
 
             // 3. Delete associated notifications
             try {
-                jdbcTemplate.update("DELETE FROM notifications WHERE user_id = ? OR user_id = ?", idStr, id);
+                jdbcTemplate.update("DELETE FROM notifications WHERE user_id = ? OR user_id = ?", idStr, longId);
             } catch (Exception e) {
-                log.warn("Could not delete notifications for user {}: {}", id, e.getMessage());
+                log.warn("Could not delete notifications for user {}: {}", longId, e.getMessage());
             }
 
             // 4. Delete associated wishlists
             try {
-                jdbcTemplate.update("DELETE FROM wishlists WHERE buyer_id = ?", id);
+                jdbcTemplate.update("DELETE FROM wishlists WHERE buyer_id = ?", longId);
             } catch (Exception e) {
-                log.warn("Could not delete wishlists for user {}: {}", id, e.getMessage());
+                log.warn("Could not delete wishlists for user {}: {}", longId, e.getMessage());
             }
 
             // 5. Delete associated RFQs and responses
@@ -334,13 +452,13 @@ public class CustomerController {
                 jdbcTemplate.update("DELETE FROM rfq_responses WHERE rfq_id IN (SELECT id FROM buyer_rfqs WHERE buyer_id = ?)", idStr);
                 jdbcTemplate.update("DELETE FROM buyer_rfqs WHERE buyer_id = ?", idStr);
             } catch (Exception e) {
-                log.warn("Could not delete RFQs for user {}: {}", id, e.getMessage());
+                log.warn("Could not delete RFQs for user {}: {}", longId, e.getMessage());
             }
 
             // 6. Delete from buyer_users if exists
             try {
                 jdbcTemplate.update("DELETE FROM buyer_users WHERE id = ?", idStr);
-                userRepository.findById(id).ifPresent(u -> {
+                userRepository.findById(longId).ifPresent(u -> {
                     String cleanPhone = u.getPhoneNumber() != null ? u.getPhoneNumber().replaceAll("[^0-9]", "") : "";
                     if (cleanPhone.length() > 10) cleanPhone = cleanPhone.substring(cleanPhone.length() - 10);
                     if (!cleanPhone.isEmpty()) {
@@ -352,19 +470,15 @@ public class CustomerController {
                 });
             } catch (Exception ignored) {}
 
-            userRepository.deleteById(id);
+            userRepository.deleteById(longId);
             return ResponseEntity.ok(Map.of("message", "Customer deleted", "success", true));
         }
 
-        // 7. Check if id matches any buyer_users synthetic ID
-        try {
-            for (com.project.kfpcl_exports.buyer.model.User bu : buyerUserRepository.findAll()) {
-                if (bu.getId() != null && Math.abs((long) bu.getId().hashCode()) == id) {
-                    buyerUserRepository.deleteById(bu.getId());
-                    return ResponseEntity.ok(Map.of("message", "Customer deleted", "success", true));
-                }
-            }
-        } catch (Exception ignored) {}
+        // 7. Delete directly from buyer_users
+        if (buyerUserRepository.existsById(id)) {
+            buyerUserRepository.deleteById(id);
+            return ResponseEntity.ok(Map.of("message", "Buyer deleted", "success", true));
+        }
 
         return ResponseEntity.notFound().build();
     }
