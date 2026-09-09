@@ -304,13 +304,13 @@ public class AuthService {
                 String bPhone = clean10.length() == 10 ? clean10 : phoneNumber;
                 java.util.Optional<com.project.kfpcl_exports.buyer.model.User> existingBuyer = buyerUserRepository.findByPhoneNumber(bPhone);
                 com.project.kfpcl_exports.buyer.model.User bUser = existingBuyer.orElseGet(() -> com.project.kfpcl_exports.buyer.model.User.builder().build());
-                bUser.setFullName(request.getFullName());
+                bUser.setFullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName() : "Buyer User");
                 bUser.setPhoneNumber(bPhone);
                 bUser.setEmail(request.getEmail());
-                bUser.setCompanyName(request.getCompanyName());
-                bUser.setBusinessType(bType);
-                bUser.setState(request.getState());
-                bUser.setCity(request.getCity());
+                bUser.setCompanyName(request.getCompanyName() != null && !request.getCompanyName().isBlank() ? request.getCompanyName() : (request.getFullName() != null ? request.getFullName() : "KFPCL Buyer"));
+                bUser.setBusinessType(bType != null ? bType : com.project.kfpcl_exports.buyer.enums.BusinessType.WHOLESALER);
+                bUser.setState(request.getState() != null && !request.getState().isBlank() ? request.getState().trim() : "India");
+                bUser.setCity(request.getCity() != null && !request.getCity().isBlank() ? request.getCity().trim() : "India");
                 bUser.setEnabled(true);
                 bUser.setStatus("ACTIVE");
                 buyerUserRepository.save(bUser);

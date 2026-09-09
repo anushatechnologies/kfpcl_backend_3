@@ -43,18 +43,22 @@ public class User {
     @Column(nullable = true)
     private String password;
 
+    @Builder.Default
     @Column(name = "company_name", length = 150)
-    private String companyName;
+    private String companyName = "KFPCL Buyer";
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "business_type", length = 20)
-    private BusinessType businessType;
+    private BusinessType businessType = BusinessType.WHOLESALER;
 
+    @Builder.Default
     @Column(length = 100)
-    private String state;
+    private String state = "India";
 
+    @Builder.Default
     @Column(length = 100)
-    private String city;
+    private String city = "India";
 
     // --- GSTIN Fields (Optional) ---
     @Column(length = 15)
@@ -107,4 +111,27 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    @PreUpdate
+    public void ensureDefaults() {
+        if (city == null || city.isBlank()) {
+            city = "India";
+        }
+        if (state == null || state.isBlank()) {
+            state = "India";
+        }
+        if (companyName == null || companyName.isBlank()) {
+            companyName = (fullName != null && !fullName.isBlank()) ? fullName : "KFPCL Buyer";
+        }
+        if (status == null || status.isBlank()) {
+            status = "PENDING_VERIFICATION";
+        }
+        if (role == null || role.isBlank()) {
+            role = "ROLE_USER";
+        }
+        if (businessType == null) {
+            businessType = BusinessType.WHOLESALER;
+        }
+    }
 }
