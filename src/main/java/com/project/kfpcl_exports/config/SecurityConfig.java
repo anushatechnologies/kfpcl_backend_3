@@ -74,6 +74,8 @@ public class SecurityConfig {
                                 "/api/media/**",
                                 "/api/policies/**",
                                 "/api/notifications/**",
+                                "/api/free-item-offers/**",
+                                "/free-item-offers/**",
                                 "/api/app/version",
                                 "/api/fcm/**",
                                 "/actuator/**",
