@@ -39,6 +39,9 @@ public class BuyerAuthHelper {
         try {
             org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getPrincipal() instanceof com.project.kfpcl_exports.security.UserPrincipal principal) {
+                if (principal.getBuyerId() != null && !principal.getBuyerId().isBlank()) {
+                    return resolveFromIdentifier(principal.getBuyerId());
+                }
                 if (principal.getPhoneNumber() != null && !principal.getPhoneNumber().isBlank()) {
                     return resolveFromIdentifier(principal.getPhoneNumber());
                 }

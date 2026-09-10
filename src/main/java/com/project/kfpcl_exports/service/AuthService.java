@@ -362,6 +362,22 @@ public class AuthService {
         }
 
         if (buyer != null) {
+            String accessToken = tokenService.createAccessToken(buyer.getId(), buyer.getPhoneNumber());
+            String refreshToken = tokenService.createRefreshToken(buyer.getId(), buyer.getPhoneNumber());
+
+            if (request.getFcmToken() != null && !request.getFcmToken().isBlank()) {
+                try {
+                    Long parsedId = null;
+                    try { parsedId = Long.parseLong(buyer.getId()); } catch (Exception ignored) {}
+                    if (parsedId != null) {
+                        fcmTokenService.saveOrUpdateFcmToken(parsedId, FcmTokenRequest.builder()
+                                .fcmToken(request.getFcmToken())
+                                .deviceType("ANDROID")
+                                .build());
+                    }
+                } catch (Exception ignored) {}
+            }
+
             UserProfileResponse profile = UserProfileResponse.builder()
                     .buyerId(buyer.getId())
                     .phoneNumber(buyer.getPhoneNumber())
@@ -383,6 +399,8 @@ public class AuthService {
                     .build();
 
             return TokenResponse.builder()
+                    .accessToken(accessToken)
+                    .refreshToken(refreshToken)
                     .user(profile)
                     .build();
         }
@@ -391,9 +409,7 @@ public class AuthService {
         Optional<User> userOpt = findUserAnywhere(phoneNumber);
         User user = userOpt.orElseThrow(() -> new IllegalArgumentException("Buyer not registered with phone number: " + phoneNumber + ". Please register first."));
 
-        return TokenResponse.builder()
-                .user(userService.mapToProfileResponse(user))
-                .build();
+        return issueTokensAndSaveFcm(user, request.getFcmToken());
     }
 
     @Transactional
@@ -427,6 +443,22 @@ public class AuthService {
         }
 
         if (buyer != null) {
+            String accessToken = tokenService.createAccessToken(buyer.getId(), buyer.getPhoneNumber());
+            String refreshToken = tokenService.createRefreshToken(buyer.getId(), buyer.getPhoneNumber());
+
+            if (request.getFcmToken() != null && !request.getFcmToken().isBlank()) {
+                try {
+                    Long parsedId = null;
+                    try { parsedId = Long.parseLong(buyer.getId()); } catch (Exception ignored) {}
+                    if (parsedId != null) {
+                        fcmTokenService.saveOrUpdateFcmToken(parsedId, FcmTokenRequest.builder()
+                                .fcmToken(request.getFcmToken())
+                                .deviceType("ANDROID")
+                                .build());
+                    }
+                } catch (Exception ignored) {}
+            }
+
             UserProfileResponse profile = UserProfileResponse.builder()
                     .buyerId(buyer.getId())
                     .phoneNumber(buyer.getPhoneNumber())
@@ -448,6 +480,8 @@ public class AuthService {
                     .build();
 
             return TokenResponse.builder()
+                    .accessToken(accessToken)
+                    .refreshToken(refreshToken)
                     .user(profile)
                     .build();
         }
@@ -456,17 +490,7 @@ public class AuthService {
         Optional<User> userOpt = findUserAnywhere(phoneNumber);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
-            if (request.getFcmToken() != null && !request.getFcmToken().isBlank()) {
-                try {
-                    fcmTokenService.saveOrUpdateFcmToken(user.getId(), FcmTokenRequest.builder()
-                            .fcmToken(request.getFcmToken())
-                            .deviceType("ANDROID")
-                            .build());
-                } catch (Exception ignored) {}
-            }
-            return TokenResponse.builder()
-                    .user(userService.mapToProfileResponse(user))
-                    .build();
+            return issueTokensAndSaveFcm(user, request.getFcmToken());
         }
 
         throw new IllegalArgumentException("Buyer not found with phone number: " + phoneNumber + ". Please register first.");
@@ -480,17 +504,59 @@ public class AuthService {
             throw new IllegalArgumentException("Invalid or expired refresh token");
         }
 
-        User user = userRepository.findById(data.getUserId())
-                .filter(User::getIsActive)
-                .orElseThrow(() -> new IllegalArgumentException("User not found or account inactive"));
+        String buyerId = data.getBuyerId();
+        if (buyerId != null && buyerUserRepository != null) {
+            Optional<com.project.kfpcl_exports.buyer.model.User> bOpt = buyerUserRepository.findById(buyerId);
+            if (bOpt.isEmpty() && data.getPhoneNumber() != null) {
+                bOpt = buyerUserRepository.findByPhoneNumber(data.getPhoneNumber());
+            }
+            if (bOpt.isPresent()) {
+                com.project.kfpcl_exports.buyer.model.User buyer = bOpt.get();
+                String newAccessToken = tokenService.rotateAccessToken(refreshToken);
+                UserProfileResponse profile = UserProfileResponse.builder()
+                        .buyerId(buyer.getId())
+                        .phoneNumber(buyer.getPhoneNumber())
+                        .fullName(buyer.getFullName())
+                        .email(buyer.getEmail())
+                        .companyName(buyer.getCompanyName())
+                        .businessType(buyer.getBusinessType() != null ? buyer.getBusinessType().name() : null)
+                        .state(buyer.getState())
+                        .city(buyer.getCity())
+                        .status(buyer.getStatus())
+                        .panNumber(buyer.getPanNumber())
+                        .panCardUrl(buyer.getPanCardUrl())
+                        .gstin(buyer.getGstin())
+                        .gstinPhotoUrl(buyer.getGstinPhotoUrl())
+                        .isVerified(Boolean.TRUE.equals(buyer.isEnabled()))
+                        .isActive(buyer.isEnabled())
+                        .createdAt(buyer.getCreatedAt())
+                        .updatedAt(buyer.getUpdatedAt())
+                        .build();
 
-        String newAccessToken = tokenService.rotateAccessToken(refreshToken);
+                return TokenResponse.builder()
+                        .accessToken(newAccessToken)
+                        .refreshToken(refreshToken)
+                        .user(profile)
+                        .build();
+            }
+        }
 
-        return TokenResponse.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(refreshToken)
-                .user(userService.mapToProfileResponse(user))
-                .build();
+        Long userId = data.getUserId();
+        if (userId != null) {
+            User user = userRepository.findById(userId)
+                    .filter(User::getIsActive)
+                    .orElseThrow(() -> new IllegalArgumentException("User not found or account inactive"));
+
+            String newAccessToken = tokenService.rotateAccessToken(refreshToken);
+
+            return TokenResponse.builder()
+                    .accessToken(newAccessToken)
+                    .refreshToken(refreshToken)
+                    .user(userService.mapToProfileResponse(user))
+                    .build();
+        }
+
+        throw new IllegalArgumentException("User not found for provided refresh token");
     }
 
     @Transactional
