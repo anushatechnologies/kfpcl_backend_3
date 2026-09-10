@@ -36,6 +36,14 @@ public interface RfqRepository extends JpaRepository<Rfq, Long>, JpaSpecificatio
 
     Page<Rfq> findByBuyerIdOrderByCreatedAtDesc(String buyerId, Pageable pageable);
 
+    @Query(value = "SELECT * FROM buyer_rfqs WHERE (buyer_id = :buyerId OR (:phone IS NOT NULL AND :phone != '' AND buyer_phone = :phone)) AND (:status IS NULL OR status = :status) ORDER BY created_at DESC",
+           countQuery = "SELECT COUNT(*) FROM buyer_rfqs WHERE (buyer_id = :buyerId OR (:phone IS NOT NULL AND :phone != '' AND buyer_phone = :phone)) AND (:status IS NULL OR status = :status)",
+           nativeQuery = true)
+    Page<Rfq> findRfqsNative(@Param("buyerId") String buyerId, @Param("phone") String phone, @Param("status") String status, Pageable pageable);
+
+    @Query(value = "SELECT * FROM buyer_rfqs WHERE (id = :id OR rfq_code = :rfqCode) AND (buyer_id = :buyerId OR (:phone IS NOT NULL AND :phone != '' AND buyer_phone = :phone)) LIMIT 1", nativeQuery = true)
+    Optional<Rfq> findByIdOrCodeAndBuyerNative(@Param("id") Long id, @Param("rfqCode") String rfqCode, @Param("buyerId") String buyerId, @Param("phone") String phone);
+
     @Query("SELECT COUNT(r) FROM BuyerRfq r WHERE r.createdAt >= :startDate AND r.createdAt <= :endDate")
     long countByCreatedAtBetween(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 }

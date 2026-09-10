@@ -133,10 +133,18 @@ public class RfqService {
     @Transactional(readOnly = true)
     public Page<BuyerRfqResponseDto> getBuyerRfqs(User buyer, RfqStatus status, Pageable pageable) {
         Page<Rfq> page;
-        if (status != null) {
-            page = rfqRepository.findByBuyerAndStatusOrderByCreatedAtDesc(buyer, status, pageable);
-        } else {
-            page = rfqRepository.findByBuyerOrderByCreatedAtDesc(buyer, pageable);
+        try {
+            if (status != null) {
+                page = rfqRepository.findByBuyerAndStatusOrderByCreatedAtDesc(buyer, status, pageable);
+            } else {
+                page = rfqRepository.findByBuyerOrderByCreatedAtDesc(buyer, pageable);
+            }
+        } catch (Exception ex) {
+            log.warn("Standard buyer RFQ query encountered error ({}), falling back to native query", ex.getMessage());
+            String buyerId = buyer != null ? buyer.getId() : "";
+            String phone = buyer != null ? buyer.getPhoneNumber() : "";
+            String statusStr = status != null ? status.name() : null;
+            page = rfqRepository.findRfqsNative(buyerId, phone, statusStr, pageable);
         }
 
         return page.map(rfq -> mapToBuyerDto(rfq, rfq.getStatus() == RfqStatus.ACCEPTED));
@@ -346,8 +354,12 @@ public class RfqService {
 
     private Rfq findRfqAndValidateOwnership(String rfqIdOrCode, User buyer) {
         Rfq rfq = findRfqByIdOrCode(rfqIdOrCode);
-        if (!rfq.getBuyer().getId().equals(buyer.getId())) {
-            throw RfqException.accessDenied("Access denied: RFQ does not belong to you");
+        if (buyer != null) {
+            boolean matchesId = rfq.getBuyer() != null && rfq.getBuyer().getId() != null && rfq.getBuyer().getId().equals(buyer.getId());
+            boolean matchesPhone = rfq.getBuyerPhone() != null && buyer.getPhoneNumber() != null && rfq.getBuyerPhone().equals(buyer.getPhoneNumber());
+            if (!matchesId && !matchesPhone) {
+                throw RfqException.accessDenied("Access denied: RFQ does not belong to you");
+            }
         }
         return rfq;
     }

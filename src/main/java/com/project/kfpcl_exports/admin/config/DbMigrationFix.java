@@ -55,15 +55,18 @@ public class DbMigrationFix implements CommandLineRunner {
 
         // 6. Fix buyer_rfqs.buyer_id to VARCHAR(64) to allow storing UUID string without truncation
         dropForeignKeyOnColumn("buyer_rfqs", "buyer_id");
-        modifyColumnType("buyer_rfqs", "buyer_id", "VARCHAR(64)");
+        modifyColumnType("buyer_rfqs", "buyer_id", "VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         dropForeignKeyOnColumn("rfq_responses", "rfq_id");
         dropForeignKeyOnColumn("notifications", "user_id");
-        modifyColumnType("notifications", "user_id", "VARCHAR(64)");
+        modifyColumnType("notifications", "user_id", "VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         dropForeignKeysReferencingTable("rfq_responses", "admin_rfqs");
         dropForeignKeysReferencingTable("rfq_responses", "rfqs");
         dropForeignKeysReferencingTable("fcm_tokens", "users");
         dropForeignKeysReferencingTable("addresses", "users");
         dropForeignKeysReferencingTable("notifications", "users");
+
+        // 6b. Fix MySQL collation mismatch between tables (utf8mb4_unicode_ci vs utf8mb4_0900_ai_ci)
+        fixCollationMismatches();
 
         // 7. Backfill any missing buyer_users referenced by legacy buyer_rfqs (e.g. id = 6)
         try {
@@ -223,5 +226,45 @@ public class DbMigrationFix implements CommandLineRunner {
             }
             return null;
         });
+    }
+
+    private void fixCollationMismatches() {
+        String[] tables = {
+            "buyer_users", "buyer_rfqs", "notifications", "rfq_responses",
+            "users", "contact_leads", "wishlists", "products", "buyer_products",
+            "admin_products", "categories", "admin_categories", "subcategories", "admin_subcategories"
+        };
+
+        for (String table : tables) {
+            try {
+                jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
+                jdbcTemplate.execute("ALTER TABLE " + table + " CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
+                log.info("Successfully converted charset and collation for table {}", table);
+            } catch (Exception e) {
+                log.debug("Notice converting table {}: {}", table, e.getMessage());
+            }
+        }
+
+        String[] columnSqls = {
+            "ALTER TABLE buyer_users MODIFY COLUMN id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL",
+            "ALTER TABLE buyer_users MODIFY COLUMN phone_number VARCHAR(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL",
+            "ALTER TABLE buyer_users MODIFY COLUMN email VARCHAR(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL",
+            "ALTER TABLE buyer_rfqs MODIFY COLUMN buyer_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL",
+            "ALTER TABLE buyer_rfqs MODIFY COLUMN buyer_phone VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL",
+            "ALTER TABLE notifications MODIFY COLUMN user_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL",
+            "ALTER TABLE rfq_responses MODIFY COLUMN rfq_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL"
+        };
+
+        for (String sql : columnSqls) {
+            try {
+                jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
+                jdbcTemplate.execute(sql);
+                jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
+                log.info("Successfully aligned column collation: {}", sql);
+            } catch (Exception e) {
+                log.debug("Notice aligning column collation: {} - {}", sql, e.getMessage());
+            }
+        }
     }
 }

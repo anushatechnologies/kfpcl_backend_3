@@ -17,6 +17,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     long countByUserAndIsReadFalse(User user);
 
+    @Query(value = "SELECT * FROM notifications WHERE user_id = :userId ORDER BY created_at DESC", nativeQuery = true)
+    List<Notification> findByUserIdNative(@Param("userId") String userId);
+
+    @Query(value = "SELECT COUNT(*) FROM notifications WHERE user_id = :userId AND is_read = false", nativeQuery = true)
+    long countByUserIdAndIsReadFalseNative(@Param("userId") String userId);
+
     @Modifying
     @Query("UPDATE Notification n SET n.isRead = true WHERE n.user = :user AND n.isRead = false")
     int markAllAsReadForUser(@Param("user") User user);
