@@ -13,7 +13,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class BuyerCreateRfqRequest {
 
+    @JsonAlias({"product_id", "item_id", "itemId"})
     private Long productId;
+
+    @JsonAlias({"product_name", "productName", "productTitle", "product_title", "commodity", "item", "product"})
+    private String productName;
 
     @JsonAlias({"name", "contactName"})
     private String buyerName;

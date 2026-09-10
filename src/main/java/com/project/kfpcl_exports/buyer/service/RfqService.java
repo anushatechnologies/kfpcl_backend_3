@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -55,33 +56,76 @@ public class RfqService {
     public BuyerRfqResponseDto createRfq(User buyer, BuyerCreateRfqRequest request) {
         com.project.kfpcl_exports.buyer.model.Product buyerProduct = null;
 
+        String explicitOrExtractedName = extractProductName(request);
+
+        // 1. If explicit product ID was provided, look it up
         if (request.getProductId() != null) {
             buyerProduct = buyerProductRepository.findById(request.getProductId()).orElse(null);
-        }
-
-        // If product with requested ID does not exist in buyer_products, sync from admin products
-        if (buyerProduct == null && request.getProductId() != null) {
-            com.project.kfpcl_exports.admin.model.Product adminProd = adminProductRepository.findById(request.getProductId()).orElse(null);
-            if (adminProd != null) {
-                com.project.kfpcl_exports.buyer.model.Product synced = com.project.kfpcl_exports.buyer.model.Product.builder()
-                        .id(adminProd.getId())
-                        .name(adminProd.getTitle() != null ? adminProd.getTitle() : "Commodity")
-                        .description(adminProd.getDescription())
-                        .mainImageUrl(adminProd.getMainImageUrl())
-                        .imageUrl(adminProd.getMainImageUrl())
-                        .isActive(Boolean.TRUE.equals(adminProd.getActive()))
-                        .createdAt(LocalDateTime.now())
-                        .build();
-                try {
-                    buyerProduct = buyerProductRepository.save(synced);
-                } catch (Exception e) {
-                    synced.setId(null);
-                    buyerProduct = buyerProductRepository.save(synced);
+            if (buyerProduct == null) {
+                com.project.kfpcl_exports.admin.model.Product adminProd = adminProductRepository.findById(request.getProductId()).orElse(null);
+                if (adminProd != null) {
+                    com.project.kfpcl_exports.buyer.model.Product synced = com.project.kfpcl_exports.buyer.model.Product.builder()
+                            .id(adminProd.getId())
+                            .name(adminProd.getTitle() != null ? adminProd.getTitle() : "Commodity")
+                            .description(adminProd.getDescription())
+                            .mainImageUrl(adminProd.getMainImageUrl())
+                            .imageUrl(adminProd.getMainImageUrl())
+                            .isActive(Boolean.TRUE.equals(adminProd.getActive()))
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                    try {
+                        buyerProduct = buyerProductRepository.save(synced);
+                    } catch (Exception e) {
+                        synced.setId(null);
+                        buyerProduct = buyerProductRepository.save(synced);
+                    }
                 }
             }
         }
 
-        // Safe Fallback 1: Pick any active product in buyer_products table
+        // 2. If a specific product name was passed or extracted from quantity/subject, match or create it
+        if (explicitOrExtractedName != null && !explicitOrExtractedName.isBlank()) {
+            boolean mismatch = (buyerProduct != null && request.getProductName() != null && !buyerProduct.getName().equalsIgnoreCase(request.getProductName()));
+            if (buyerProduct == null || mismatch) {
+                // Search by name in buyer_products
+                List<com.project.kfpcl_exports.buyer.model.Product> matches = buyerProductRepository.findTop10ByNameContainingIgnoreCaseAndIsActiveTrue(explicitOrExtractedName);
+                if (!matches.isEmpty()) {
+                    buyerProduct = matches.get(0);
+                } else {
+                    // Search in admin products
+                    List<com.project.kfpcl_exports.admin.model.Product> adminMatches = adminProductRepository.findByTitleContainingIgnoreCase(explicitOrExtractedName);
+                    if (!adminMatches.isEmpty()) {
+                        com.project.kfpcl_exports.admin.model.Product ap = adminMatches.get(0);
+                        com.project.kfpcl_exports.buyer.model.Product synced = com.project.kfpcl_exports.buyer.model.Product.builder()
+                                .id(ap.getId())
+                                .name(ap.getTitle())
+                                .description(ap.getDescription())
+                                .mainImageUrl(ap.getMainImageUrl())
+                                .imageUrl(ap.getMainImageUrl())
+                                .isActive(true)
+                                .createdAt(LocalDateTime.now())
+                                .build();
+                        try {
+                            buyerProduct = buyerProductRepository.save(synced);
+                        } catch (Exception ignored) {
+                            synced.setId(null);
+                            buyerProduct = buyerProductRepository.save(synced);
+                        }
+                    } else {
+                        // Dynamically create commodity product entry so the RFQ title exactly matches the buyer's requirement
+                        com.project.kfpcl_exports.buyer.model.Product custom = com.project.kfpcl_exports.buyer.model.Product.builder()
+                                .name(explicitOrExtractedName)
+                                .description("Inquired commodity: " + explicitOrExtractedName)
+                                .isActive(true)
+                                .createdAt(LocalDateTime.now())
+                                .build();
+                        buyerProduct = buyerProductRepository.save(custom);
+                    }
+                }
+            }
+        }
+
+        // 3. Fallback: Pick any active product in buyer_products table
         if (buyerProduct == null) {
             buyerProduct = buyerProductRepository.findAll().stream()
                     .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
@@ -89,11 +133,11 @@ public class RfqService {
                     .orElseGet(() -> buyerProductRepository.findAll().stream().findFirst().orElse(null));
         }
 
-        // Safe Fallback 2: Auto-create a default product entry in buyer_products table to satisfy FK constraint
+        // 4. Fallback: Auto-create a default product entry in buyer_products table
         if (buyerProduct == null) {
             LocalDateTime now = LocalDateTime.now();
             com.project.kfpcl_exports.buyer.model.Product fallback = com.project.kfpcl_exports.buyer.model.Product.builder()
-                    .name("General Commodity Product")
+                    .name(explicitOrExtractedName != null ? explicitOrExtractedName : "General Commodity Product")
                     .description("Default product created for RFQ requests")
                     .isActive(true)
                     .createdAt(now)
@@ -465,5 +509,39 @@ public class RfqService {
                 .response(responseDto)
                 .contactAvailable(contactAvailable)
                 .build();
+    }
+
+    private String extractProductName(BuyerCreateRfqRequest request) {
+        if (request == null) return null;
+
+        if (request.getProductName() != null && !request.getProductName().isBlank()) {
+            return request.getProductName().trim();
+        }
+
+        // Check if subject specifies a commodity (avoid generic subjects like "price Enquiry")
+        if (request.getSubject() != null && !request.getSubject().isBlank()) {
+            String s = request.getSubject().trim();
+            String lower = s.toLowerCase();
+            if (!lower.contains("price enquiry") && !lower.contains("enquiry") && !lower.contains("rfq") && !lower.equals("inquiry")) {
+                return s;
+            }
+        }
+
+        // Check if quantity has commodity name, e.g. "30 Herbal Hair Oil (Standard pack)"
+        if (request.getQuantity() != null && !request.getQuantity().isBlank()) {
+            String q = request.getQuantity().trim();
+            // Remove leading numbers and operators: "30 Herbal Hair Oil (Standard pack)" -> "Herbal Hair Oil (Standard pack)"
+            String stripped = q.replaceFirst("^[0-9]+[\\s\\-xX*]*", "").trim();
+            // Remove packaging suffixes like "(Standard pack)", "Standard pack", "(pack)"
+            String cleaned = stripped.replaceAll("(?i)\\s*\\(standard pack\\)", "")
+                                     .replaceAll("(?i)\\s*standard pack", "")
+                                     .replaceAll("(?i)\\s*\\(pack\\)", "")
+                                     .trim();
+            if (cleaned.length() >= 3 && !cleaned.matches("(?i)^(kg|g|mt|ton|tons|metric tons|pieces|pcs|units|litres|l|box|boxes|cartons)$")) {
+                return cleaned;
+            }
+        }
+
+        return null;
     }
 }

@@ -51,13 +51,38 @@ public class BuyerRfqController {
             if (request.getSubject() == null) request.setSubject(mpr.getParameter("subject"));
             if (request.getBuyerMessage() == null) request.setBuyerMessage(mpr.getParameter("buyerMessage"));
             if (request.getEmail() == null) request.setEmail(mpr.getParameter("email"));
+            if (request.getProductName() == null) {
+                String pName = mpr.getParameter("productName");
+                if (pName == null) pName = mpr.getParameter("productTitle");
+                if (pName == null) pName = mpr.getParameter("product_name");
+                if (pName == null) pName = mpr.getParameter("commodity");
+                if (pName != null && !pName.isBlank()) request.setProductName(pName.trim());
+            }
             String pid = mpr.getParameter("productId");
+            if (pid == null) pid = mpr.getParameter("product_id");
             if (pid != null && !pid.isBlank() && request.getProductId() == null) {
-                try { request.setProductId(Long.parseLong(pid)); } catch (Exception ignored) {}
+                try { request.setProductId(Long.parseLong(pid.trim())); } catch (Exception ignored) {}
             }
             org.springframework.web.multipart.MultipartFile file = mpr.getFile("file");
             if (file != null && !file.isEmpty()) {
                 request.setFileUrl("attachment://" + file.getOriginalFilename());
+            }
+        }
+
+        if (httpRequest != null) {
+            if (request.getProductName() == null) {
+                String pName = httpRequest.getParameter("productName");
+                if (pName == null) pName = httpRequest.getParameter("productTitle");
+                if (pName == null) pName = httpRequest.getParameter("product_name");
+                if (pName == null) pName = httpRequest.getParameter("commodity");
+                if (pName != null && !pName.isBlank()) request.setProductName(pName.trim());
+            }
+            if (request.getProductId() == null) {
+                String pid = httpRequest.getParameter("productId");
+                if (pid == null) pid = httpRequest.getParameter("product_id");
+                if (pid != null && !pid.isBlank()) {
+                    try { request.setProductId(Long.parseLong(pid.trim())); } catch (Exception ignored) {}
+                }
             }
         }
 
