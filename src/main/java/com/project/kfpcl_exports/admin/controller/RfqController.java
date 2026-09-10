@@ -95,6 +95,9 @@ public class RfqController {
                 map.put("productImage", rfq.getProduct().getMainImageUrl());
                 map.put("mainImageUrl", rfq.getProduct().getMainImageUrl());
                 map.put("price", rfq.getProduct().getIndicativePrice());
+                // Store info from the selected product
+                map.put("storeId", rfq.getProduct().getStoreId());
+                map.put("storeName", rfq.getProduct().getStoreName());
             }
         } catch (Exception e) {
             log.warn("Could not load product for RFQ id {}: {}", rfq.getId(), e.getMessage());

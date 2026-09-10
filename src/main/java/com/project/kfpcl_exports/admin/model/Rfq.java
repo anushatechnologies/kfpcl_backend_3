@@ -43,6 +43,10 @@ public class Rfq {
     @Column(length = 2000)
     private String details;
 
+    private Long storeId;
+
+    private String storeName;
+
     private String status; // PENDING, QUOTED, REJECTED, ACCEPTED
 
     @OneToOne(mappedBy = "rfq", cascade = CascadeType.ALL, orphanRemoval = true)

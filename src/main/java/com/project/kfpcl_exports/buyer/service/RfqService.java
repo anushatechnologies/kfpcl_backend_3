@@ -625,6 +625,13 @@ public class RfqService {
 
             if (buyerRfq.getProduct() != null) {
                 adminRfq.setProductName(buyerRfq.getProduct().getName() != null ? buyerRfq.getProduct().getName() : buyerRfq.getProduct().getTitle());
+                // Set store from the selected product
+                if (buyerRfq.getProduct().getStoreId() != null) {
+                    adminRfq.setStoreId(buyerRfq.getProduct().getStoreId());
+                }
+                if (buyerRfq.getProduct().getStoreName() != null) {
+                    adminRfq.setStoreName(buyerRfq.getProduct().getStoreName());
+                }
             }
 
             if (buyerRfq.getQuantity() != null) {

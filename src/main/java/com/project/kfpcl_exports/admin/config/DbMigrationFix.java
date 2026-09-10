@@ -235,6 +235,24 @@ public class DbMigrationFix implements CommandLineRunner {
         } catch (Exception e) {
             log.debug("Notice on quantity cleaning: {}", e.getMessage());
         }
+
+        // 13. Backfill store_id and store_name in admin_rfqs from the product linked in buyer_rfqs
+        try {
+            // Add store columns if they don't exist
+            try { jdbcTemplate.execute("ALTER TABLE admin_rfqs ADD COLUMN store_id BIGINT"); } catch (Exception ignored) {}
+            try { jdbcTemplate.execute("ALTER TABLE admin_rfqs ADD COLUMN store_name VARCHAR(255)"); } catch (Exception ignored) {}
+
+            jdbcTemplate.execute(
+                "UPDATE admin_rfqs ar " +
+                "JOIN buyer_rfqs br ON ar.rfq_number = br.rfq_code " +
+                "JOIN buyer_products bp ON br.product_id = bp.id " +
+                "SET ar.store_id = bp.store_id, ar.store_name = bp.store_name " +
+                "WHERE ar.store_id IS NULL AND bp.store_id IS NOT NULL"
+            );
+            log.info("Backfilled store info in admin_rfqs from buyer products");
+        } catch (Exception e) {
+            log.debug("Notice on store backfill: {}", e.getMessage());
+        }
     }
 
     private void cleanupInvalidColumnData() {
