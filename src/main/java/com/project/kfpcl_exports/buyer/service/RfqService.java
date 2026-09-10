@@ -27,6 +27,8 @@ public class RfqService {
     private final RfqResponseRepository rfqResponseRepository;
     private final ProductRepository buyerProductRepository;
     private final com.project.kfpcl_exports.admin.repository.ProductRepository adminProductRepository;
+    private final com.project.kfpcl_exports.admin.repository.RfqRepository adminRfqRepository;
+    private final com.project.kfpcl_exports.admin.repository.QuotationRepository adminQuotationRepository;
     private final RfqCodeGenerator rfqCodeGenerator;
     private final NotificationService notificationService;
 
@@ -35,6 +37,8 @@ public class RfqService {
             RfqResponseRepository rfqResponseRepository,
             ProductRepository buyerProductRepository,
             com.project.kfpcl_exports.admin.repository.ProductRepository adminProductRepository,
+            com.project.kfpcl_exports.admin.repository.RfqRepository adminRfqRepository,
+            com.project.kfpcl_exports.admin.repository.QuotationRepository adminQuotationRepository,
             RfqCodeGenerator rfqCodeGenerator,
             NotificationService notificationService
     ) {
@@ -42,6 +46,8 @@ public class RfqService {
         this.rfqResponseRepository = rfqResponseRepository;
         this.buyerProductRepository = buyerProductRepository;
         this.adminProductRepository = adminProductRepository;
+        this.adminRfqRepository = adminRfqRepository;
+        this.adminQuotationRepository = adminQuotationRepository;
         this.rfqCodeGenerator = rfqCodeGenerator;
         this.notificationService = notificationService;
     }
@@ -148,6 +154,12 @@ public class RfqService {
         String rfqCode = rfqCodeGenerator.generateRfqCode();
         LocalDateTime now = LocalDateTime.now();
 
+        // Clean buyer_message: extract embedded name/phone/subject and keep only the actual message
+        String cleanMessage = sanitizeAndExtractMessage(request, request.getBuyerMessage());
+
+        // Clean quantity: extract only numeric quantity + unit (e.g. "500 kg"), strip product names
+        String cleanQuantity = cleanQuantityField(request);
+
         String buyerName = request.getBuyerName() != null ? request.getBuyerName() : (buyer != null ? buyer.getName() : null);
         String buyerPhone = request.getBuyerPhone() != null ? request.getBuyerPhone() : (buyer != null ? buyer.getPhoneNumber() : null);
 
@@ -159,15 +171,16 @@ public class RfqService {
                 .buyerPhone(buyerPhone)
                 .subject(request.getSubject())
                 .fileUrl(request.getFileUrl())
-                .quantity(request.getQuantity() != null ? request.getQuantity() : "1")
+                .quantity(cleanQuantity)
                 .deliveryLocation(request.getDeliveryLocation() != null ? request.getDeliveryLocation() : "Default Location")
-                .buyerMessage(request.getBuyerMessage())
+                .buyerMessage(cleanMessage)
                 .status(RfqStatus.PENDING)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
 
         Rfq saved = rfqRepository.save(rfq);
+        syncToAdminRfqTable(saved, "PENDING");
         return mapToBuyerDto(saved, false);
     }
 
@@ -227,6 +240,7 @@ public class RfqService {
         rfq.setStatus(RfqStatus.ACCEPTED);
         rfq.setUpdatedAt(LocalDateTime.now());
         Rfq saved = rfqRepository.save(rfq);
+        syncToAdminRfqTable(saved, "ACCEPTED");
 
         // Transactional notification
         try {
@@ -266,6 +280,7 @@ public class RfqService {
         rfq.setRejectionReason(reason);
         rfq.setUpdatedAt(LocalDateTime.now());
         Rfq saved = rfqRepository.save(rfq);
+        syncToAdminRfqTable(saved, "REJECTED");
 
         // Transactional notification
         try {
@@ -312,6 +327,7 @@ public class RfqService {
                 .build();
 
         Rfq saved = rfqRepository.save(newRfq);
+        syncToAdminRfqTable(saved, "PENDING");
         return mapToBuyerDto(saved, false);
     }
 
@@ -377,6 +393,7 @@ public class RfqService {
         rfq.setUpdatedAt(now);
         rfq.getResponses().add(0, response);
         rfqRepository.save(rfq);
+        syncToAdminRfqTable(rfq, "QUOTED");
 
         try {
             notificationService.createNotification(
@@ -543,5 +560,139 @@ public class RfqService {
         }
 
         return null;
+    }
+
+    /**
+     * Cleans the quantity field to store ONLY the numeric quantity + unit.
+     * Example: "10 Aashirvaad Shudh Chakki Atta (Standard pack)" → "10"
+     * Example: "500 kg" → "500 kg"
+     * Example: "5,000 KG" → "5,000 KG"
+     * Example: "500 Standard pack" → "500"
+     * If the product name is embedded in quantity, it is extracted and set on the request.
+     */
+    private String cleanQuantityField(BuyerCreateRfqRequest request) {
+        if (request == null || request.getQuantity() == null || request.getQuantity().isBlank()) {
+            return "1";
+        }
+
+        String raw = request.getQuantity().trim();
+
+        // Match leading number (with commas/decimals) and optional unit
+        java.util.regex.Matcher qtyMatcher = java.util.regex.Pattern
+                .compile("^([0-9][0-9,.]*)\\s*(kg|g|mt|ton|tons|metric tons|pieces|pcs|units|litres|liters|l|box|boxes|cartons|KG|MT|L)?(.*)$", java.util.regex.Pattern.CASE_INSENSITIVE)
+                .matcher(raw);
+
+        if (qtyMatcher.find()) {
+            String numericPart = qtyMatcher.group(1).trim();
+            String unitPart = qtyMatcher.group(2) != null ? qtyMatcher.group(2).trim() : "";
+            String remainder = qtyMatcher.group(3) != null ? qtyMatcher.group(3).trim() : "";
+
+            // If there's remaining text after number+unit, it's likely a product name
+            if (!remainder.isBlank()) {
+                // Remove packaging suffixes
+                String productCandidate = remainder
+                        .replaceAll("(?i)\\s*\\(standard pack\\)", "")
+                        .replaceAll("(?i)\\s*standard pack", "")
+                        .replaceAll("(?i)\\s*\\(pack\\)", "")
+                        .trim();
+
+                // Set as productName if not already set
+                if (productCandidate.length() >= 3
+                        && (request.getProductName() == null || request.getProductName().isBlank())) {
+                    request.setProductName(productCandidate);
+                }
+            }
+
+            // Return clean quantity: "500 kg", "10", "5,000 KG"
+            return unitPart.isBlank() ? numericPart : (numericPart + " " + unitPart);
+        }
+
+        // Fallback: return as-is
+        return raw;
+    }
+
+    public void syncToAdminRfqTable(Rfq buyerRfq, String statusStr) {
+        try {
+            if (buyerRfq == null || buyerRfq.getRfqCode() == null) return;
+
+            com.project.kfpcl_exports.admin.model.Rfq adminRfq = adminRfqRepository.findByRfqNumber(buyerRfq.getRfqCode())
+                    .orElse(new com.project.kfpcl_exports.admin.model.Rfq());
+
+            adminRfq.setRfqNumber(buyerRfq.getRfqCode());
+            adminRfq.setCustomerName(buyerRfq.getBuyerName() != null ? buyerRfq.getBuyerName() : (buyerRfq.getBuyer() != null ? buyerRfq.getBuyer().getName() : "Buyer"));
+            adminRfq.setCustomerPhone(buyerRfq.getBuyerPhone() != null ? buyerRfq.getBuyerPhone() : (buyerRfq.getBuyer() != null ? buyerRfq.getBuyer().getPhoneNumber() : null));
+            adminRfq.setCustomerEmail(buyerRfq.getBuyer() != null ? buyerRfq.getBuyer().getEmail() : null);
+
+            if (buyerRfq.getProduct() != null) {
+                adminRfq.setProductName(buyerRfq.getProduct().getName() != null ? buyerRfq.getProduct().getName() : buyerRfq.getProduct().getTitle());
+            }
+
+            if (buyerRfq.getQuantity() != null) {
+                String qStr = buyerRfq.getQuantity().trim();
+                String numOnly = qStr.replaceAll("[^0-9]", "");
+                if (!numOnly.isEmpty()) {
+                    try {
+                        adminRfq.setQuantity(Integer.parseInt(numOnly));
+                    } catch (Exception ignored) {}
+                }
+                String[] parts = qStr.split("\\s+", 2);
+                if (parts.length > 1) {
+                    adminRfq.setUnit(parts[1]);
+                }
+            }
+
+            adminRfq.setDestinationCountry(buyerRfq.getDeliveryLocation());
+            adminRfq.setShippingTerms("FOB / Standard");
+            adminRfq.setDetails(buyerRfq.getBuyerMessage());
+            adminRfq.setStatus(statusStr != null ? statusStr : (buyerRfq.getStatus() != null ? buyerRfq.getStatus().name() : "PENDING"));
+            if (adminRfq.getCreatedAt() == null) {
+                adminRfq.setCreatedAt(buyerRfq.getCreatedAt() != null ? buyerRfq.getCreatedAt() : LocalDateTime.now());
+            }
+
+            adminRfqRepository.save(adminRfq);
+        } catch (Exception e) {
+            log.warn("Notice: Could not sync RFQ to admin_rfqs: {}", e.getMessage());
+        }
+    }
+
+    private String sanitizeAndExtractMessage(BuyerCreateRfqRequest request, String rawMessage) {
+        if (rawMessage == null || rawMessage.isBlank()) return rawMessage;
+
+        String cleanMsg = rawMessage;
+
+        // Extract "Buyer Name: <value>"
+        java.util.regex.Matcher nameMatcher = java.util.regex.Pattern.compile("(?i)Buyer\\s*Name\\s*:\\s*([^\\n]+?)(?=(?:Buyer\\s*Mobile|Mobile|Phone|Subject|Date|$))").matcher(cleanMsg);
+        if (nameMatcher.find()) {
+            String extractedName = nameMatcher.group(1).trim();
+            if ((request.getBuyerName() == null || request.getBuyerName().isBlank()) && !extractedName.isBlank()) {
+                request.setBuyerName(extractedName);
+            }
+            cleanMsg = cleanMsg.replace(nameMatcher.group(0), "").trim();
+        }
+
+        // Extract "Buyer Mobile: <value>" or "Mobile: <value>"
+        java.util.regex.Matcher phoneMatcher = java.util.regex.Pattern.compile("(?i)(?:Buyer\\s*Mobile|Mobile|Phone)\\s*:\\s*([^\\n]+?)(?=(?:Subject|Date|Buyer\\s*Name|$))").matcher(cleanMsg);
+        if (phoneMatcher.find()) {
+            String extractedPhone = phoneMatcher.group(1).trim();
+            if ((request.getBuyerPhone() == null || request.getBuyerPhone().isBlank()) && !extractedPhone.isBlank()) {
+                request.setBuyerPhone(extractedPhone);
+            }
+            cleanMsg = cleanMsg.replace(phoneMatcher.group(0), "").trim();
+        }
+
+        // Extract "Subject: <value>"
+        java.util.regex.Matcher subjectMatcher = java.util.regex.Pattern.compile("(?i)Subject\\s*:\\s*([^\\n]+?)(?=(?:Message|Notes|Requirement|Date|$))").matcher(cleanMsg);
+        if (subjectMatcher.find()) {
+            String extractedSubject = subjectMatcher.group(1).trim();
+            if ((request.getSubject() == null || request.getSubject().isBlank()) && !extractedSubject.isBlank()) {
+                request.setSubject(extractedSubject);
+            }
+            cleanMsg = cleanMsg.replace(subjectMatcher.group(0), "").trim();
+        }
+
+        // Remove lingering labels like "Message:" or "Notes:"
+        cleanMsg = cleanMsg.replaceAll("(?i)^(?:Message|Notes|Requirement|Details)\\s*:\\s*", "").trim();
+
+        return cleanMsg.isBlank() ? (request.getSubject() != null ? request.getSubject() : "Price enquiry") : cleanMsg;
     }
 }

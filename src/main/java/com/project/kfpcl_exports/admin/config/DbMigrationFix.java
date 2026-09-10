@@ -40,11 +40,26 @@ public class DbMigrationFix implements CommandLineRunner {
         ensureAutoIncrement("banners", "id");
         ensureAutoIncrement("stores", "id");
         ensureAutoIncrement("buyer_rfqs", "id");
+        ensureAutoIncrement("admin_rfqs", "id");
+        ensureAutoIncrement("quotations", "id");
         ensureAutoIncrement("rfq_responses", "id");
         ensureAutoIncrement("wishlists", "id");
         ensureAutoIncrement("notifications", "id");
         ensureAutoIncrement("contact_leads", "id");
         ensureAutoIncrement("policies", "id");
+        makeColumnNullable("admin_rfqs", "details", "VARCHAR(2000)");
+        makeColumnNullable("admin_rfqs", "destination_country", "VARCHAR(255)");
+        makeColumnNullable("admin_rfqs", "shipping_terms", "VARCHAR(255)");
+        makeColumnNullable("admin_rfqs", "target_price", "VARCHAR(255)");
+        makeColumnNullable("admin_rfqs", "unit", "VARCHAR(50)");
+        makeColumnNullable("admin_rfqs", "quantity", "INT");
+        makeColumnNullable("admin_rfqs", "customer_id", "BIGINT");
+        makeColumnNullable("admin_rfqs", "rfq_number", "VARCHAR(255)");
+        makeColumnNullable("admin_rfqs", "customer_name", "VARCHAR(255)");
+        makeColumnNullable("admin_rfqs", "customer_email", "VARCHAR(255)");
+        makeColumnNullable("admin_rfqs", "customer_phone", "VARCHAR(255)");
+        makeColumnNullable("admin_rfqs", "product_name", "VARCHAR(255)");
+        makeColumnNullable("admin_rfqs", "status", "VARCHAR(50)");
         makeColumnNullable("users", "enabled", "BOOLEAN DEFAULT TRUE");
         makeColumnNullable("users", "password", "VARCHAR(255)");
         makeColumnNullable("users", "role", "VARCHAR(50) DEFAULT 'ROLE_BUYER'");
@@ -117,6 +132,108 @@ public class DbMigrationFix implements CommandLineRunner {
             );
         } catch (Exception e) {
             log.debug("Notice on buyer_users sync to users: {}", e.getMessage());
+        }
+
+        // 10. Sync existing buyer_rfqs into admin_rfqs table so all past RFQs are in admin_rfqs
+        try {
+            jdbcTemplate.execute(
+                "INSERT INTO admin_rfqs (rfq_number, customer_name, customer_email, customer_phone, product_name, quantity, unit, destination_country, shipping_terms, details, status, created_at) " +
+                "SELECT " +
+                "  r.rfq_code, " +
+                "  COALESCE(NULLIF(r.buyer_name, ''), NULLIF(u.name, ''), 'Buyer'), " +
+                "  u.email, " +
+                "  COALESCE(NULLIF(r.buyer_phone, ''), u.phone_number), " +
+                "  COALESCE(NULLIF(p.name, ''), 'Commodity Product'), " +
+                "  CAST(COALESCE(NULLIF(REGEXP_SUBSTR(r.quantity, '[0-9]+'), ''), '1') AS UNSIGNED), " +
+                "  COALESCE(NULLIF(TRIM(REGEXP_REPLACE(r.quantity, '^[0-9, ]+', '')), ''), 'Units'), " +
+                "  COALESCE(r.delivery_location, 'India'), " +
+                "  'FOB / Standard', " +
+                "  r.buyer_message, " +
+                "  COALESCE(r.status, 'PENDING'), " +
+                "  COALESCE(r.created_at, NOW()) " +
+                "FROM buyer_rfqs r " +
+                "LEFT JOIN buyer_users u ON r.buyer_id = u.id " +
+                "LEFT JOIN buyer_products p ON r.product_id = p.id " +
+                "WHERE r.rfq_code IS NOT NULL " +
+                "  AND NOT EXISTS (SELECT 1 FROM admin_rfqs a WHERE a.rfq_number = r.rfq_code)"
+            );
+            log.info("Successfully synced existing buyer_rfqs into admin_rfqs table");
+        } catch (Exception e) {
+            log.debug("Notice on buyer_rfqs sync to admin_rfqs: {}", e.getMessage());
+        }
+
+        // 11. Clean up previously concatenated "Buyer Name: ... Buyer Mobile: ..." from buyer_message in buyer_rfqs
+        try {
+            java.util.List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT id, buyer_name, buyer_phone, subject, buyer_message FROM buyer_rfqs WHERE buyer_message LIKE '%Buyer Name:%'"
+            );
+            for (java.util.Map<String, Object> row : rows) {
+                Long id = ((Number) row.get("id")).longValue();
+                String rawMsg = (String) row.get("buyer_message");
+                String bName = (String) row.get("buyer_name");
+                String bPhone = (String) row.get("buyer_phone");
+                String subj = (String) row.get("subject");
+
+                if (rawMsg != null) {
+                    String clean = rawMsg;
+                    java.util.regex.Matcher nameMatcher = java.util.regex.Pattern.compile("(?i)Buyer\\s*Name\\s*:\\s*([^\\n]+?)(?=(?:Buyer\\s*Mobile|Mobile|Phone|Subject|Date|$))").matcher(clean);
+                    if (nameMatcher.find()) {
+                        if (bName == null || bName.isBlank()) bName = nameMatcher.group(1).trim();
+                        clean = clean.replace(nameMatcher.group(0), "").trim();
+                    }
+
+                    java.util.regex.Matcher phoneMatcher = java.util.regex.Pattern.compile("(?i)(?:Buyer\\s*Mobile|Mobile|Phone)\\s*:\\s*([^\\n]+?)(?=(?:Subject|Date|Buyer\\s*Name|$))").matcher(clean);
+                    if (phoneMatcher.find()) {
+                        if (bPhone == null || bPhone.isBlank()) bPhone = phoneMatcher.group(1).trim();
+                        clean = clean.replace(phoneMatcher.group(0), "").trim();
+                    }
+
+                    java.util.regex.Matcher subjectMatcher = java.util.regex.Pattern.compile("(?i)Subject\\s*:\\s*([^\\n]+?)(?=(?:Message|Notes|Requirement|Date|$))").matcher(clean);
+                    if (subjectMatcher.find()) {
+                        if (subj == null || subj.isBlank()) subj = subjectMatcher.group(1).trim();
+                        clean = clean.replace(subjectMatcher.group(0), "").trim();
+                    }
+
+                    clean = clean.replaceAll("(?i)^(?:Message|Notes|Requirement|Details)\\s*:\\s*", "").trim();
+                    if (clean.isBlank()) {
+                        clean = (subj != null ? subj : "Price enquiry");
+                    }
+
+                    jdbcTemplate.update(
+                        "UPDATE buyer_rfqs SET buyer_name = ?, buyer_phone = ?, subject = ?, buyer_message = ? WHERE id = ?",
+                        bName, bPhone, subj, clean, id
+                    );
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Notice on buyer_message cleaning: {}", e.getMessage());
+        }
+
+        // 12. Clean quantity field: extract only numeric + unit, remove embedded product names
+        //     e.g. "10 Aashirvaad Shudh Chakki Atta (Standard pack)" → "10"
+        //     e.g. "500 Kg" → "500 Kg" (no change needed)
+        try {
+            java.util.List<java.util.Map<String, Object>> qtyRows = jdbcTemplate.queryForList(
+                "SELECT id, quantity FROM buyer_rfqs WHERE quantity REGEXP '^[0-9][0-9,.]* [A-Za-z]' AND quantity NOT REGEXP '^[0-9][0-9,.]* ?(kg|g|mt|ton|tons|metric tons|pieces|pcs|units|litres|liters|l|box|boxes|cartons|KG|MT|L)$'"
+            );
+            for (java.util.Map<String, Object> row : qtyRows) {
+                Long id = ((Number) row.get("id")).longValue();
+                String rawQty = (String) row.get("quantity");
+                if (rawQty != null) {
+                    java.util.regex.Matcher m = java.util.regex.Pattern
+                            .compile("^([0-9][0-9,.]*)\\s*(kg|g|mt|ton|tons|metric tons|pieces|pcs|units|litres|liters|l|box|boxes|cartons|KG|MT|L)?", java.util.regex.Pattern.CASE_INSENSITIVE)
+                            .matcher(rawQty.trim());
+                    if (m.find()) {
+                        String num = m.group(1).trim();
+                        String unit = m.group(2) != null ? m.group(2).trim() : "";
+                        String cleanQty = unit.isEmpty() ? num : (num + " " + unit);
+                        jdbcTemplate.update("UPDATE buyer_rfqs SET quantity = ? WHERE id = ?", cleanQty, id);
+                    }
+                }
+            }
+            log.info("Cleaned quantity field in buyer_rfqs");
+        } catch (Exception e) {
+            log.debug("Notice on quantity cleaning: {}", e.getMessage());
         }
     }
 

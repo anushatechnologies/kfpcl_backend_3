@@ -33,6 +33,8 @@ public class RfqController {
 
     private final RfqRepository buyerRfqRepository;
     private final RfqResponseRepository rfqResponseRepository;
+    private final com.project.kfpcl_exports.admin.repository.RfqRepository adminRfqRepository;
+    private final com.project.kfpcl_exports.admin.repository.QuotationRepository adminQuotationRepository;
     private final com.project.kfpcl_exports.buyer.service.NotificationService notificationService;
 
     private Map<String, Object> mapRfqToMap(Rfq rfq) {
@@ -292,6 +294,43 @@ public class RfqController {
 
         double totalAmount = unitPrice * qty;
         String quoteId = "QUO-" + (savedResp.getId() != null ? savedResp.getId() : "8841");
+
+        // Sync to admin_rfqs and quotations tables
+        try {
+            com.project.kfpcl_exports.admin.model.Rfq adminRfq = adminRfqRepository.findByRfqNumber(rfq.getRfqCode())
+                    .orElse(new com.project.kfpcl_exports.admin.model.Rfq());
+            adminRfq.setRfqNumber(rfq.getRfqCode());
+            adminRfq.setCustomerName(rfq.getBuyerName() != null ? rfq.getBuyerName() : (rfq.getBuyer() != null ? rfq.getBuyer().getName() : "Buyer"));
+            adminRfq.setCustomerPhone(rfq.getBuyerPhone() != null ? rfq.getBuyerPhone() : (rfq.getBuyer() != null ? rfq.getBuyer().getPhoneNumber() : null));
+            adminRfq.setCustomerEmail(rfq.getBuyer() != null ? rfq.getBuyer().getEmail() : null);
+            if (rfq.getProduct() != null) {
+                adminRfq.setProductName(rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle());
+            }
+            adminRfq.setQuantity(qty);
+            adminRfq.setDestinationCountry(rfq.getDeliveryLocation());
+            adminRfq.setShippingTerms("FOB / Standard");
+            adminRfq.setDetails(rfq.getBuyerMessage());
+            adminRfq.setStatus("QUOTED");
+            if (adminRfq.getCreatedAt() == null) {
+                adminRfq.setCreatedAt(rfq.getCreatedAt() != null ? rfq.getCreatedAt() : LocalDateTime.now());
+            }
+            adminRfq = adminRfqRepository.save(adminRfq);
+
+            com.project.kfpcl_exports.admin.model.Quotation quotation = adminQuotationRepository.findByRfqId(adminRfq.getId())
+                    .orElse(new com.project.kfpcl_exports.admin.model.Quotation());
+            quotation.setRfq(adminRfq);
+            quotation.setUnitPrice(unitPrice);
+            quotation.setQuantity(qty);
+            quotation.setTotalPrice(totalAmount);
+            quotation.setDeliveryDays(deliveryDays);
+            quotation.setNotes(notes);
+            if (quotation.getCreatedAt() == null) {
+                quotation.setCreatedAt(LocalDateTime.now());
+            }
+            adminQuotationRepository.save(quotation);
+        } catch (Exception e) {
+            log.warn("Notice: Could not sync quotation to admin_rfqs / quotations table: {}", e.getMessage());
+        }
 
         Map<String, Object> quoteData = new HashMap<>();
         quoteData.put("quoteId", quoteId);

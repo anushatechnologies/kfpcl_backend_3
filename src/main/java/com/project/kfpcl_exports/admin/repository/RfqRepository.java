@@ -4,6 +4,9 @@ import com.project.kfpcl_exports.admin.model.Rfq;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository("adminRfqRepository")
 public interface RfqRepository extends JpaRepository<Rfq, Long> {
+    Optional<Rfq> findByRfqNumber(String rfqNumber);
 }
