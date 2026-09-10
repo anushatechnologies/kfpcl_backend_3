@@ -98,6 +98,8 @@ public class RfqController {
                 // Store info from the selected product
                 map.put("storeId", rfq.getProduct().getStoreId());
                 map.put("storeName", rfq.getProduct().getStoreName());
+                // Used by the admin RFQ details card's "Assigned Store" field.
+                map.put("assignedStore", rfq.getProduct().getStoreName());
             }
         } catch (Exception e) {
             log.warn("Could not load product for RFQ id {}: {}", rfq.getId(), e.getMessage());
@@ -308,6 +310,8 @@ public class RfqController {
             adminRfq.setCustomerEmail(rfq.getBuyer() != null ? rfq.getBuyer().getEmail() : null);
             if (rfq.getProduct() != null) {
                 adminRfq.setProductName(rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle());
+                adminRfq.setStoreId(rfq.getProduct().getStoreId());
+                adminRfq.setStoreName(rfq.getProduct().getStoreName());
             }
             adminRfq.setQuantity(qty);
             adminRfq.setDestinationCountry(rfq.getDeliveryLocation());
