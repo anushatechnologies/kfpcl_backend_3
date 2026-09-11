@@ -7,16 +7,17 @@ import com.project.kfpcl_exports.buyer.enums.NotificationType;
 import com.project.kfpcl_exports.buyer.model.Notification;
 import com.project.kfpcl_exports.buyer.repository.NotificationRepository;
 import com.project.kfpcl_exports.buyer.repository.UserRepository;
+import com.project.kfpcl_exports.model.FcmToken;
+import com.project.kfpcl_exports.repository.FcmTokenRepository;
 import com.project.kfpcl_exports.service.FcmTokenService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Slf4j
 @RestController("adminNotificationController")
@@ -27,17 +28,20 @@ public class NotificationController {
     private final NotificationRepository notificationRepository;
     private final UserRepository buyerUserRepository;
     private final FcmTokenService fcmTokenService;
+    private final FcmTokenRepository fcmTokenRepository;
 
     public NotificationController(
             DeviceTokenRepository deviceTokenRepository,
             NotificationRepository notificationRepository,
             @Qualifier("buyerUserRepository") UserRepository buyerUserRepository,
-            FcmTokenService fcmTokenService
+            FcmTokenService fcmTokenService,
+            @Autowired(required = false) FcmTokenRepository fcmTokenRepository
     ) {
         this.deviceTokenRepository = deviceTokenRepository;
         this.notificationRepository = notificationRepository;
         this.buyerUserRepository = buyerUserRepository;
         this.fcmTokenService = fcmTokenService;
+        this.fcmTokenRepository = fcmTokenRepository;
     }
 
     @PostMapping("/notifications/send")
@@ -74,7 +78,7 @@ public class NotificationController {
         String title = request.getTitle() != null && !request.getTitle().isBlank() ? request.getTitle() : "Delivery Update";
         String message = request.getMessage() != null ? request.getMessage() : "";
 
-        List<DeviceToken> deliveryTokens = deviceTokenRepository.findByUserType("DELIVERY");
+        List<DeviceToken> deliveryTokens = deviceTokenRepository.findByUserTypeIgnoreCase("DELIVERY");
         for (DeviceToken dt : deliveryTokens) {
             try {
                 fcmTokenService.sendPushNotification(dt.getToken(), title, message);
@@ -93,7 +97,7 @@ public class NotificationController {
     private void dispatchNotificationToCustomers(String title, String message) {
         LocalDateTime now = LocalDateTime.now();
 
-        // 1. Save in-app notification for all buyers
+        // 1. Save in-app notification for all buyers in database
         try {
             List<com.project.kfpcl_exports.buyer.model.User> buyers = buyerUserRepository.findAll();
             for (com.project.kfpcl_exports.buyer.model.User buyer : buyers) {
@@ -115,37 +119,66 @@ public class NotificationController {
             log.error("Error retrieving buyers for notification dispatch: {}", e.getMessage());
         }
 
-        // 2. Dispatch FCM Push Notification to all registered customer device tokens
+        // 2. Aggregate device push tokens from both device_tokens and fcm_tokens tables
+        Set<String> uniqueTokens = new HashSet<>();
+
         try {
-            List<DeviceToken> customerTokens = deviceTokenRepository.findByUserType("CUSTOMER");
+            List<DeviceToken> customerTokens = deviceTokenRepository.findByUserTypeIgnoreCase("CUSTOMER");
             for (DeviceToken dt : customerTokens) {
-                try {
-                    fcmTokenService.sendPushNotification(dt.getToken(), title, message);
-                } catch (Exception e) {
-                    log.warn("Failed to push FCM to customer device token {}: {}", dt.getToken(), e.getMessage());
+                if (dt.getToken() != null && !dt.getToken().isBlank()) {
+                    uniqueTokens.add(dt.getToken().trim());
                 }
             }
         } catch (Exception e) {
-            log.error("Error sending FCM push notifications: {}", e.getMessage());
+            log.warn("Error fetching device_tokens for CUSTOMER: {}", e.getMessage());
+        }
+
+        if (fcmTokenRepository != null) {
+            try {
+                List<FcmToken> fcmTokens = fcmTokenRepository.findAll();
+                for (FcmToken ft : fcmTokens) {
+                    if (ft.getFcmToken() != null && !ft.getFcmToken().isBlank()) {
+                        uniqueTokens.add(ft.getFcmToken().trim());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error fetching fcm_tokens: {}", e.getMessage());
+            }
+        }
+
+        // 3. Dispatch FCM Push Notifications
+        for (String token : uniqueTokens) {
+            try {
+                fcmTokenService.sendPushNotification(token, title, message);
+            } catch (Exception e) {
+                log.warn("Failed to push FCM to customer device token {}: {}", token, e.getMessage());
+            }
         }
     }
 
     @PostMapping({"/save-token", "/api/save-token"})
     public ResponseEntity<Map<String, Object>> saveToken(@RequestBody Map<String, String> payload) {
         String tokenStr = payload.get("token");
-        String userType = payload.getOrDefault("userType", "CUSTOMER");
+        String rawUserType = payload.getOrDefault("userType", "CUSTOMER");
+        String userType = rawUserType != null ? rawUserType.trim().toUpperCase() : "CUSTOMER";
 
         if (tokenStr != null && !tokenStr.isBlank()) {
+            tokenStr = tokenStr.trim();
             Optional<DeviceToken> existingOpt = deviceTokenRepository.findByToken(tokenStr);
             if (existingOpt.isEmpty()) {
                 deviceTokenRepository.save(DeviceToken.builder()
                         .token(tokenStr)
                         .userType(userType)
                         .build());
+            } else {
+                DeviceToken existing = existingOpt.get();
+                existing.setUserType(userType);
+                deviceTokenRepository.save(existing);
             }
             return ResponseEntity.ok(Map.of("message", "Device token registered", "success", true));
         }
         return ResponseEntity.badRequest().body(Map.of("message", "Token is required", "success", false));
     }
 }
+
 

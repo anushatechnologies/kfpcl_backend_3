@@ -209,7 +209,7 @@ public class RfqService {
             return;
         }
         try {
-            List<DeviceToken> adminTokens = deviceTokenRepository.findByUserType("ADMIN");
+            List<DeviceToken> adminTokens = deviceTokenRepository.findByUserTypeIgnoreCase("ADMIN");
             String title = "New RFQ Received";
             String body = "Buyer " + (rfq.getBuyerName() != null ? rfq.getBuyerName() : "Customer") +
                     " submitted RFQ #" + rfq.getRfqCode() + " for " +
