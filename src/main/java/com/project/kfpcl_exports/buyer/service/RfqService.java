@@ -9,7 +9,11 @@ import com.project.kfpcl_exports.buyer.repository.ProductRepository;
 import com.project.kfpcl_exports.buyer.repository.RfqRepository;
 import com.project.kfpcl_exports.buyer.repository.RfqResponseRepository;
 import com.project.kfpcl_exports.buyer.util.RfqCodeGenerator;
+import com.project.kfpcl_exports.admin.model.DeviceToken;
+import com.project.kfpcl_exports.admin.repository.DeviceTokenRepository;
+import com.project.kfpcl_exports.service.FcmTokenService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -31,6 +35,8 @@ public class RfqService {
     private final com.project.kfpcl_exports.admin.repository.QuotationRepository adminQuotationRepository;
     private final RfqCodeGenerator rfqCodeGenerator;
     private final NotificationService notificationService;
+    private final DeviceTokenRepository deviceTokenRepository;
+    private final FcmTokenService fcmTokenService;
 
     public RfqService(
             RfqRepository rfqRepository,
@@ -40,7 +46,9 @@ public class RfqService {
             com.project.kfpcl_exports.admin.repository.RfqRepository adminRfqRepository,
             com.project.kfpcl_exports.admin.repository.QuotationRepository adminQuotationRepository,
             RfqCodeGenerator rfqCodeGenerator,
-            NotificationService notificationService
+            NotificationService notificationService,
+            @Autowired(required = false) DeviceTokenRepository deviceTokenRepository,
+            @Autowired(required = false) FcmTokenService fcmTokenService
     ) {
         this.rfqRepository = rfqRepository;
         this.rfqResponseRepository = rfqResponseRepository;
@@ -50,11 +58,9 @@ public class RfqService {
         this.adminQuotationRepository = adminQuotationRepository;
         this.rfqCodeGenerator = rfqCodeGenerator;
         this.notificationService = notificationService;
+        this.deviceTokenRepository = deviceTokenRepository;
+        this.fcmTokenService = fcmTokenService;
     }
-
-    // =========================================================================
-    // BUYER OPERATIONS (DEVELOPER 3 MODULE)
-    // =========================================================================
 
     /**
      * 1. Create a new RFQ for the authenticated buyer.
@@ -194,7 +200,30 @@ public class RfqService {
 
         Rfq saved = rfqRepository.save(rfq);
         syncToAdminRfqTable(saved, "PENDING");
+        notifyAdminNewRfq(saved);
         return mapToBuyerDto(saved, false);
+    }
+
+    private void notifyAdminNewRfq(Rfq rfq) {
+        if (deviceTokenRepository == null || fcmTokenService == null) {
+            return;
+        }
+        try {
+            List<DeviceToken> adminTokens = deviceTokenRepository.findByUserType("ADMIN");
+            String title = "New RFQ Received";
+            String body = "Buyer " + (rfq.getBuyerName() != null ? rfq.getBuyerName() : "Customer") +
+                    " submitted RFQ #" + rfq.getRfqCode() + " for " +
+                    (rfq.getProduct() != null ? rfq.getProduct().getName() : "product");
+            for (DeviceToken dt : adminTokens) {
+                try {
+                    fcmTokenService.sendPushNotification(dt.getToken(), title, body);
+                } catch (Exception e) {
+                    log.warn("Failed to send FCM push to Admin device token {}: {}", dt.getToken(), e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to notify Admin of new RFQ: {}", e.getMessage());
+        }
     }
 
     /**
@@ -220,11 +249,6 @@ public class RfqService {
         return page.map(rfq -> mapToBuyerDto(rfq, rfq.getStatus() == RfqStatus.ACCEPTED));
     }
 
-    /**
-     * 3. Get single RFQ detail for authenticated buyer.
-     * Contact details are NEVER exposed before acceptance.
-     */
-    @Transactional(readOnly = true)
     public BuyerRfqResponseDto getBuyerRfqDetail(User buyer, String rfqIdOrCode) {
         Rfq rfq = findRfqAndValidateOwnership(rfqIdOrCode, buyer);
         return mapToBuyerDto(rfq, rfq.getStatus() == RfqStatus.ACCEPTED);
