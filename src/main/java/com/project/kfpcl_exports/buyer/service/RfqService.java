@@ -61,6 +61,10 @@ public class RfqService {
      */
     public BuyerRfqResponseDto createRfq(User buyer, BuyerCreateRfqRequest request) {
         com.project.kfpcl_exports.buyer.model.Product buyerProduct = null;
+        // The catalog product is the authoritative source for the store selected by the buyer.
+        com.project.kfpcl_exports.admin.model.Product selectedAdminProduct = request.getProductId() == null
+                ? null
+                : adminProductRepository.findById(request.getProductId()).orElse(null);
 
         String explicitOrExtractedName = extractProductName(request);
 
@@ -68,7 +72,7 @@ public class RfqService {
         if (request.getProductId() != null) {
             buyerProduct = buyerProductRepository.findById(request.getProductId()).orElse(null);
             if (buyerProduct == null) {
-                com.project.kfpcl_exports.admin.model.Product adminProd = adminProductRepository.findById(request.getProductId()).orElse(null);
+                com.project.kfpcl_exports.admin.model.Product adminProd = selectedAdminProduct;
                 if (adminProd != null) {
                     com.project.kfpcl_exports.buyer.model.Product synced = com.project.kfpcl_exports.buyer.model.Product.builder()
                             .id(adminProd.getId())
@@ -76,6 +80,8 @@ public class RfqService {
                             .description(adminProd.getDescription())
                             .mainImageUrl(adminProd.getMainImageUrl())
                             .imageUrl(adminProd.getMainImageUrl())
+                            .storeId(adminProd.getStoreId())
+                            .storeName(adminProd.getStoreName())
                             .isActive(Boolean.TRUE.equals(adminProd.getActive()))
                             .createdAt(LocalDateTime.now())
                             .build();
@@ -108,6 +114,8 @@ public class RfqService {
                                 .description(ap.getDescription())
                                 .mainImageUrl(ap.getMainImageUrl())
                                 .imageUrl(ap.getMainImageUrl())
+                                .storeId(ap.getStoreId())
+                                .storeName(ap.getStoreName())
                                 .isActive(true)
                                 .createdAt(LocalDateTime.now())
                                 .build();
@@ -151,6 +159,9 @@ public class RfqService {
             buyerProduct = buyerProductRepository.save(fallback);
         }
 
+        StoreAssignment storeAssignment = resolveProductStore(buyerProduct, selectedAdminProduct);
+        applyStoreToBuyerProduct(buyerProduct, storeAssignment);
+
         String rfqCode = rfqCodeGenerator.generateRfqCode();
         LocalDateTime now = LocalDateTime.now();
 
@@ -167,6 +178,8 @@ public class RfqService {
                 .rfqCode(rfqCode)
                 .buyer(buyer)
                 .product(buyerProduct)
+                .storeId(storeAssignment.storeId())
+                .storeName(storeAssignment.storeName())
                 .buyerName(buyerName)
                 .buyerPhone(buyerPhone)
                 .subject(request.getSubject())
@@ -317,6 +330,8 @@ public class RfqService {
                 .rfqCode(newRfqCode)
                 .buyer(originalRfq.getBuyer())
                 .product(originalRfq.getProduct())
+                .storeId(originalRfq.getStoreId())
+                .storeName(originalRfq.getStoreName())
                 .quantity(request.getQuantity())
                 .deliveryLocation(request.getDeliveryLocation())
                 .buyerMessage(request.getBuyerMessage())
@@ -611,9 +626,130 @@ public class RfqService {
         return raw;
     }
 
+    private record StoreAssignment(Long storeId, String storeName) {}
+
+    /**
+     * Resolves the store from the catalog product whenever possible.  Buyer-product
+     * rows are a display mirror and older rows may not contain store information.
+     */
+    private StoreAssignment resolveProductStore(
+            com.project.kfpcl_exports.buyer.model.Product buyerProduct,
+            com.project.kfpcl_exports.admin.model.Product preferredAdminProduct) {
+
+        Long storeId = buyerProduct != null ? buyerProduct.getStoreId() : null;
+        String storeName = buyerProduct != null ? buyerProduct.getStoreName() : null;
+
+        com.project.kfpcl_exports.admin.model.Product sourceProduct = preferredAdminProduct;
+        if (sourceProduct == null) {
+            sourceProduct = findMatchingAdminProduct(buyerProduct);
+        }
+
+        if (sourceProduct != null) {
+            if (sourceProduct.getStoreId() != null) {
+                storeId = sourceProduct.getStoreId();
+            }
+            if (hasText(sourceProduct.getStoreName())) {
+                storeName = sourceProduct.getStoreName().trim();
+            }
+        }
+
+        return new StoreAssignment(storeId, storeName);
+    }
+
+    private com.project.kfpcl_exports.admin.model.Product findMatchingAdminProduct(
+            com.project.kfpcl_exports.buyer.model.Product buyerProduct) {
+        if (buyerProduct == null) {
+            return null;
+        }
+
+        String buyerProductName = buyerProduct.getName();
+        if (buyerProduct.getId() != null) {
+            com.project.kfpcl_exports.admin.model.Product byId = adminProductRepository
+                    .findById(buyerProduct.getId())
+                    .orElse(null);
+            if (byId != null && (!hasText(buyerProductName) || namesMatch(byId.getTitle(), buyerProductName))) {
+                return byId;
+            }
+        }
+
+        if (!hasText(buyerProductName)) {
+            return null;
+        }
+
+        return adminProductRepository.findByTitleContainingIgnoreCase(buyerProductName.trim()).stream()
+                .filter(product -> namesMatch(product.getTitle(), buyerProductName))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void applyStoreToBuyerProduct(
+            com.project.kfpcl_exports.buyer.model.Product buyerProduct,
+            StoreAssignment storeAssignment) {
+        if (buyerProduct == null || storeAssignment == null) {
+            return;
+        }
+
+        boolean changed = false;
+        if (storeAssignment.storeId() != null
+                && !java.util.Objects.equals(buyerProduct.getStoreId(), storeAssignment.storeId())) {
+            buyerProduct.setStoreId(storeAssignment.storeId());
+            changed = true;
+        }
+        if (hasText(storeAssignment.storeName())
+                && !storeAssignment.storeName().trim().equals(buyerProduct.getStoreName())) {
+            buyerProduct.setStoreName(storeAssignment.storeName().trim());
+            changed = true;
+        }
+
+        if (changed) {
+            buyerProductRepository.save(buyerProduct);
+        }
+    }
+
+    private StoreAssignment resolveRfqStore(Rfq buyerRfq) {
+        Long storeId = buyerRfq.getStoreId();
+        String storeName = buyerRfq.getStoreName();
+        if (storeId == null || !hasText(storeName)) {
+            StoreAssignment productStore = resolveProductStore(buyerRfq.getProduct(), null);
+            if (storeId == null) {
+                storeId = productStore.storeId();
+            }
+            if (!hasText(storeName)) {
+                storeName = productStore.storeName();
+            }
+        }
+        return new StoreAssignment(storeId, storeName);
+    }
+
+    private void saveMissingRfqStore(Rfq buyerRfq, StoreAssignment storeAssignment) {
+        boolean changed = false;
+        if (buyerRfq.getStoreId() == null && storeAssignment.storeId() != null) {
+            buyerRfq.setStoreId(storeAssignment.storeId());
+            changed = true;
+        }
+        if (!hasText(buyerRfq.getStoreName()) && hasText(storeAssignment.storeName())) {
+            buyerRfq.setStoreName(storeAssignment.storeName().trim());
+            changed = true;
+        }
+        if (changed) {
+            rfqRepository.save(buyerRfq);
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private boolean namesMatch(String first, String second) {
+        return hasText(first) && hasText(second) && first.trim().equalsIgnoreCase(second.trim());
+    }
+
     public void syncToAdminRfqTable(Rfq buyerRfq, String statusStr) {
         try {
             if (buyerRfq == null || buyerRfq.getRfqCode() == null) return;
+
+            StoreAssignment storeAssignment = resolveRfqStore(buyerRfq);
+            saveMissingRfqStore(buyerRfq, storeAssignment);
 
             com.project.kfpcl_exports.admin.model.Rfq adminRfq = adminRfqRepository.findByRfqNumber(buyerRfq.getRfqCode())
                     .orElse(new com.project.kfpcl_exports.admin.model.Rfq());
@@ -625,13 +761,13 @@ public class RfqService {
 
             if (buyerRfq.getProduct() != null) {
                 adminRfq.setProductName(buyerRfq.getProduct().getName() != null ? buyerRfq.getProduct().getName() : buyerRfq.getProduct().getTitle());
-                // Set store from the selected product
-                if (buyerRfq.getProduct().getStoreId() != null) {
-                    adminRfq.setStoreId(buyerRfq.getProduct().getStoreId());
-                }
-                if (buyerRfq.getProduct().getStoreName() != null) {
-                    adminRfq.setStoreName(buyerRfq.getProduct().getStoreName());
-                }
+            }
+            // Store is a snapshot from the buyer-selected catalog product.
+            if (storeAssignment.storeId() != null) {
+                adminRfq.setStoreId(storeAssignment.storeId());
+            }
+            if (hasText(storeAssignment.storeName())) {
+                adminRfq.setStoreName(storeAssignment.storeName().trim());
             }
 
             if (buyerRfq.getQuantity() != null) {

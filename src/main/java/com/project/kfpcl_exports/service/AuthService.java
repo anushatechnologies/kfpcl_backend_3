@@ -11,9 +11,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 @Service
+@Slf4j
 public class AuthService {
 
     private final UserRepository userRepository;
@@ -273,67 +275,89 @@ public class AuthService {
             throw new IllegalArgumentException("Invalid or expired verification token");
         }
 
-        // Check if user already exists across all format variations
-        Optional<User> existingOpt = findUserAnywhere(phoneNumber);
+        String bPhone = clean10.length() == 10 ? clean10 : phoneNumber;
+        com.project.kfpcl_exports.buyer.model.User buyerUser = null;
 
-        if (existingOpt.isPresent()) {
-            User user = existingOpt.get();
-            // Re-activate previously soft-deleted or inactive account
-            user.setFullName(request.getFullName());
-            user.setEmail(request.getEmail());
-            user.setCompanyName(request.getCompanyName());
-            user.setBusinessType(request.getBusinessType());
-            user.setState(request.getState());
-            user.setCity(request.getCity());
-            user.setIsActive(true);
-            user.setIsVerified(true);
-            User saved = userRepository.save(user);
-
-            return issueTokensAndSaveFcm(saved, request.getFcmToken());
-        }
-
-        // Sync to buyer_users table
         if (buyerUserRepository != null) {
+            Optional<com.project.kfpcl_exports.buyer.model.User> existingBuyer = buyerUserRepository.findByPhoneNumber(bPhone);
+            if (existingBuyer.isEmpty() && request.getEmail() != null && !request.getEmail().isBlank()) {
+                existingBuyer = buyerUserRepository.findByEmail(request.getEmail().trim().toLowerCase());
+            }
+
+            com.project.kfpcl_exports.buyer.enums.BusinessType bType = null;
             try {
-                com.project.kfpcl_exports.buyer.enums.BusinessType bType = null;
-                try {
-                    bType = com.project.kfpcl_exports.buyer.enums.BusinessType.fromString(request.getBusinessType());
-                } catch (Exception ignored) {
-                    bType = com.project.kfpcl_exports.buyer.enums.BusinessType.WHOLESALER;
+                bType = com.project.kfpcl_exports.buyer.enums.BusinessType.fromString(request.getBusinessType());
+            } catch (Exception ignored) {
+                bType = com.project.kfpcl_exports.buyer.enums.BusinessType.WHOLESALER;
+            }
+
+            if (existingBuyer.isPresent()) {
+                buyerUser = existingBuyer.get();
+                buyerUser.setFullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName().trim() : buyerUser.getFullName());
+                buyerUser.setEmail(request.getEmail() != null ? request.getEmail().trim().toLowerCase() : buyerUser.getEmail());
+                buyerUser.setCompanyName(request.getCompanyName() != null && !request.getCompanyName().isBlank() ? request.getCompanyName().trim() : buyerUser.getCompanyName());
+                if (bType != null) {
+                    buyerUser.setBusinessType(bType);
                 }
-                String bPhone = clean10.length() == 10 ? clean10 : phoneNumber;
-                java.util.Optional<com.project.kfpcl_exports.buyer.model.User> existingBuyer = buyerUserRepository.findByPhoneNumber(bPhone);
-                com.project.kfpcl_exports.buyer.model.User bUser = existingBuyer.orElseGet(() -> com.project.kfpcl_exports.buyer.model.User.builder().build());
-                bUser.setFullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName() : "Buyer User");
-                bUser.setPhoneNumber(bPhone);
-                bUser.setEmail(request.getEmail());
-                bUser.setCompanyName(request.getCompanyName() != null && !request.getCompanyName().isBlank() ? request.getCompanyName() : (request.getFullName() != null ? request.getFullName() : "KFPCL Buyer"));
-                bUser.setBusinessType(bType != null ? bType : com.project.kfpcl_exports.buyer.enums.BusinessType.WHOLESALER);
-                bUser.setState(request.getState() != null && !request.getState().isBlank() ? request.getState().trim() : "India");
-                bUser.setCity(request.getCity() != null && !request.getCity().isBlank() ? request.getCity().trim() : "India");
-                bUser.setEnabled(true);
-                bUser.setStatus("ACTIVE");
-                buyerUserRepository.save(bUser);
-            } catch (Exception ignored) {}
+                buyerUser.setState(request.getState() != null ? request.getState().trim() : buyerUser.getState());
+                buyerUser.setCity(request.getCity() != null ? request.getCity().trim() : buyerUser.getCity());
+                buyerUser.setEnabled(true);
+                buyerUser.setStatus("ACTIVE");
+            } else {
+                buyerUser = com.project.kfpcl_exports.buyer.model.User.builder()
+                        .fullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName().trim() : "Buyer User")
+                        .phoneNumber(bPhone)
+                        .email(request.getEmail() != null ? request.getEmail().trim().toLowerCase() : null)
+                        .companyName(request.getCompanyName() != null && !request.getCompanyName().isBlank() ? request.getCompanyName().trim() : "KFPCL Buyer")
+                        .businessType(bType != null ? bType : com.project.kfpcl_exports.buyer.enums.BusinessType.WHOLESALER)
+                        .state(request.getState() != null && !request.getState().isBlank() ? request.getState().trim() : "India")
+                        .city(request.getCity() != null && !request.getCity().isBlank() ? request.getCity().trim() : "India")
+                        .enabled(true)
+                        .status("ACTIVE")
+                        .role("ROLE_USER")
+                        .build();
+            }
+            buyerUser = buyerUserRepository.save(buyerUser);
         }
 
-        User newUser = User.builder()
-                .phoneNumber(phoneNumber)
-                .fullName(request.getFullName())
-                .email(request.getEmail())
-                .companyName(request.getCompanyName())
-                .businessType(request.getBusinessType())
-                .state(request.getState())
-                .city(request.getCity())
-                .isVerified(true)
-                .isActive(true)
-                .build();
-
-        User savedUser = newUser;
+        // Sync to main users table for Address & FCM features compatibility
+        User savedUser = null;
         try {
-            savedUser = userRepository.save(newUser);
-        } catch (Exception ignored) {}
-        return issueTokensAndSaveFcm(savedUser, request.getFcmToken());
+            Optional<User> existingUserOpt = findUserAnywhere(phoneNumber);
+            User legacyUser;
+            if (existingUserOpt.isPresent()) {
+                legacyUser = existingUserOpt.get();
+                legacyUser.setFullName(request.getFullName());
+                legacyUser.setEmail(request.getEmail());
+                legacyUser.setCompanyName(request.getCompanyName());
+                legacyUser.setBusinessType(request.getBusinessType());
+                legacyUser.setState(request.getState());
+                legacyUser.setCity(request.getCity());
+                legacyUser.setIsActive(true);
+                legacyUser.setIsVerified(true);
+            } else {
+                legacyUser = User.builder()
+                        .phoneNumber(phoneNumber)
+                        .fullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName() : "Buyer User")
+                        .email(request.getEmail())
+                        .companyName(request.getCompanyName() != null && !request.getCompanyName().isBlank() ? request.getCompanyName() : "KFPCL Buyer")
+                        .businessType(request.getBusinessType() != null ? request.getBusinessType() : "WHOLESALER")
+                        .state(request.getState() != null && !request.getState().isBlank() ? request.getState() : "India")
+                        .city(request.getCity() != null && !request.getCity().isBlank() ? request.getCity() : "India")
+                        .isVerified(true)
+                        .isActive(true)
+                        .build();
+            }
+            savedUser = userRepository.save(legacyUser);
+        } catch (Exception ex) {
+            log.warn("Non-fatal sync to legacy users table failed: {}", ex.getMessage());
+        }
+
+        if (savedUser != null && savedUser.getId() != null) {
+            return issueTokensAndSaveFcm(savedUser, request.getFcmToken());
+        }
+
+        return issueTokensAndSaveFcm(buyerUser, request.getFcmToken());
     }
 
     @Transactional
@@ -589,6 +613,40 @@ public class AuthService {
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .user(userService.mapToProfileResponse(user))
+                .build();
+    }
+
+    private TokenResponse issueTokensAndSaveFcm(com.project.kfpcl_exports.buyer.model.User buyer, String fcmToken) {
+        if (buyer == null) {
+            throw new IllegalArgumentException("Failed to register buyer user");
+        }
+        String accessToken = tokenService.createAccessToken(buyer.getId(), buyer.getPhoneNumber());
+        String refreshToken = tokenService.createRefreshToken(buyer.getId(), buyer.getPhoneNumber());
+
+        UserProfileResponse profile = UserProfileResponse.builder()
+                .buyerId(buyer.getId())
+                .phoneNumber(buyer.getPhoneNumber())
+                .fullName(buyer.getFullName())
+                .email(buyer.getEmail())
+                .companyName(buyer.getCompanyName())
+                .businessType(buyer.getBusinessType() != null ? buyer.getBusinessType().name() : null)
+                .state(buyer.getState())
+                .city(buyer.getCity())
+                .status(buyer.getStatus())
+                .panNumber(buyer.getPanNumber())
+                .panCardUrl(buyer.getPanCardUrl())
+                .gstin(buyer.getGstin())
+                .gstinPhotoUrl(buyer.getGstinPhotoUrl())
+                .isVerified(Boolean.TRUE.equals(buyer.isEnabled()))
+                .isActive(buyer.isEnabled())
+                .createdAt(buyer.getCreatedAt())
+                .updatedAt(buyer.getUpdatedAt())
+                .build();
+
+        return TokenResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(profile)
                 .build();
     }
 }

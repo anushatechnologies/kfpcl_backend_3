@@ -32,7 +32,7 @@ public class Developer1ApiTest {
 
     @Test
     void testCompleteDeveloper1Flow() throws Exception {
-        String phone = "9876543210";
+        String phone = "9876599999";
 
         // 1. Check phone prior to registration
         mockMvc.perform(get("/api/auth/check-phone/" + phone))
@@ -72,7 +72,7 @@ public class Developer1ApiTest {
                 .phoneNumber(phone)
                 .verificationToken(verifyResp.getVerificationToken())
                 .fullName("Rahul Sharma")
-                .email("rahul@kfpcl.com")
+                .email("rahul@gmail.com")
                 .companyName("KFPCL Traders")
                 .businessType("Wholesaler")
                 .state("Maharashtra")

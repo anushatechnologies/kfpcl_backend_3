@@ -44,6 +44,17 @@ public class Rfq {
     @org.hibernate.annotations.NotFound(action = org.hibernate.annotations.NotFoundAction.IGNORE)
     private Product product;
 
+    /**
+     * Store assigned to the selected product when this RFQ was created.
+     * These fields are a snapshot so a later product-store change cannot alter
+     * the store that owns an existing RFQ.
+     */
+    @Column(name = "store_id")
+    private Long storeId;
+
+    @Column(name = "store_name")
+    private String storeName;
+
     @Column(nullable = false, length = 100)
     private String quantity;
 

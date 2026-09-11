@@ -66,7 +66,7 @@ class BuyerRegistrationTest {
         RegistrationRequestDto dto = new RegistrationRequestDto();
         dto.setFullName("Sai Krishna");
         dto.setMobileNumber("9274370580");
-        dto.setEmail("saikrishna@example.com");
+        dto.setEmail("saikrishna@gmail.com");
         dto.setCompanyName("KFPCL Exports");
         dto.setBusinessType(BusinessType.WHOLESALER);
         dto.setState("Telangana");
@@ -91,7 +91,7 @@ class BuyerRegistrationTest {
         assertNotNull(response);
         assertEquals("test-uuid-1234", response.getId());
         assertEquals("Sai Krishna", response.getFullName());
-        assertEquals("saikrishna@example.com", response.getEmail());
+        assertEquals("saikrishna@gmail.com", response.getEmail());
         assertEquals("9274370580", response.getPhoneNumber());
         assertEquals("ABCDE1234F", response.getPanNumber());
         assertNotNull(response.getPanCardUrl());
@@ -111,7 +111,7 @@ class BuyerRegistrationTest {
         RegistrationRequestDto dto = new RegistrationRequestDto();
         dto.setFullName("Test User");
         dto.setMobileNumber("9876543210");
-        dto.setEmail("test@example.com");
+        dto.setEmail("test@gmail.com");
         dto.setCompanyName("Test Co");
         dto.setBusinessType(BusinessType.TRADER);
         dto.setState("AP");
@@ -140,7 +140,7 @@ class BuyerRegistrationTest {
         RegistrationRequestDto dto = new RegistrationRequestDto();
         dto.setFullName("Test User");
         dto.setMobileNumber("9876543210");
-        dto.setEmail("test@example.com");
+        dto.setEmail("test@gmail.com");
         dto.setCompanyName("Test Co");
         dto.setBusinessType(BusinessType.RETAILER);
         dto.setState("AP");
@@ -167,7 +167,7 @@ class BuyerRegistrationTest {
         RegistrationRequestDto dto = new RegistrationRequestDto();
         dto.setFullName("Test User");
         dto.setMobileNumber("9876543210");
-        dto.setEmail("test@example.com");
+        dto.setEmail("test@gmail.com");
         dto.setCompanyName("Test Co");
         dto.setBusinessType(BusinessType.WHOLESALER);
         dto.setState("AP");
@@ -190,7 +190,7 @@ class BuyerRegistrationTest {
         User user = User.builder()
                 .id("buyer-uuid-999")
                 .fullName("Sai Krishna")
-                .email("saikrishna@example.com")
+                .email("saikrishna@gmail.com")
                 .phoneNumber("9274370580")
                 .password("encoded_secret")
                 .enabled(true)
@@ -219,7 +219,7 @@ class BuyerRegistrationTest {
         User user = User.builder()
                 .id("buyer-uuid-999")
                 .fullName("Sai Krishna")
-                .email("saikrishna@example.com")
+                .email("saikrishna@gmail.com")
                 .phoneNumber("9274370580")
                 .password("encoded_secret")
                 .enabled(true)
@@ -233,5 +233,28 @@ class BuyerRegistrationTest {
         );
 
         assertThrows(IllegalArgumentException.class, () -> registrationService.loginBuyer(request));
+    }
+
+    @Test
+    @DisplayName("Should validate email and reject domains other than @gmail.com (such as @message or @hi)")
+    void testEmailValidationOnlyAllowsGmail() {
+        jakarta.validation.ValidatorFactory factory = jakarta.validation.Validation.buildDefaultValidatorFactory();
+        jakarta.validation.Validator validator = factory.getValidator();
+
+        RegistrationRequestDto invalidDto1 = new RegistrationRequestDto();
+        invalidDto1.setEmail("user@message");
+        assertFalse(validator.validateProperty(invalidDto1, "email").isEmpty());
+
+        RegistrationRequestDto invalidDto2 = new RegistrationRequestDto();
+        invalidDto2.setEmail("user@hi");
+        assertFalse(validator.validateProperty(invalidDto2, "email").isEmpty());
+
+        RegistrationRequestDto invalidDto3 = new RegistrationRequestDto();
+        invalidDto3.setEmail("user@yahoo.com");
+        assertFalse(validator.validateProperty(invalidDto3, "email").isEmpty());
+
+        RegistrationRequestDto validDto = new RegistrationRequestDto();
+        validDto.setEmail("user@gmail.com");
+        assertTrue(validator.validateProperty(validDto, "email").isEmpty());
     }
 }

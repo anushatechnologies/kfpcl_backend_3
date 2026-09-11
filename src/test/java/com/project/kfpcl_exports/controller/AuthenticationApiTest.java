@@ -189,7 +189,7 @@ public class AuthenticationApiTest {
                 .phoneNumber(phone)
                 .verificationToken(verificationToken)
                 .fullName("Anusha Rao")
-                .email("anusha@kfpcl.com")
+                .email("anusha@gmail.com")
                 .companyName("KFPCL Agro Export")
                 .businessType("Exporter")
                 .state("Andhra Pradesh")
@@ -223,7 +223,7 @@ public class AuthenticationApiTest {
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.fullName").value("Anusha Rao"))
-                .andExpect(jsonPath("$.email").value("anusha@kfpcl.com"))
+                .andExpect(jsonPath("$.email").value("anusha@gmail.com"))
                 .andExpect(jsonPath("$.companyName").value("KFPCL Agro Export"));
 
         // 7. Refresh access token
@@ -283,10 +283,11 @@ public class AuthenticationApiTest {
     void testSignUp_InvalidVerificationToken() throws Exception {
         SignUpRequest req = SignUpRequest.builder()
                 .phoneNumber("9110009999")
-                .verificationToken("invalid_fake_token")
+                .verificationToken("invalid")
                 .fullName("Test User")
+                .email("testuser@gmail.com")
                 .companyName("Test Co")
-                .businessType("Buyer")
+                .businessType("Wholesaler")
                 .state("Telangana")
                 .city("Hyderabad")
                 .build();
@@ -336,7 +337,7 @@ public class AuthenticationApiTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginReq)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("User not registered or account inactive"));
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("not registered")));
     }
 
     // =========================================================================

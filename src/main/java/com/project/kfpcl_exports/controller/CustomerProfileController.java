@@ -23,8 +23,8 @@ public class CustomerProfileController {
     public ResponseEntity<?> getProfile(
             @AuthenticationPrincipal UserPrincipal principal,
             jakarta.servlet.http.HttpServletRequest request) {
-        if (principal != null && principal.getUserId() != null) {
-            return ResponseEntity.ok(userService.getProfile(principal.getUserId()));
+        if (principal != null) {
+            return ResponseEntity.ok(userService.getProfile(principal.getBuyerId(), principal.getUserId()));
         }
 
         // Fallback to headers (X-Phone-Number, X-User-Email, X-Customer-Id)
@@ -55,19 +55,19 @@ public class CustomerProfileController {
     public ResponseEntity<?> updateProfile(
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody ProfileUpdateRequest request) {
-        if (principal == null || principal.getUserId() == null) {
+        if (principal == null) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
                     .body(GenericResponse.builder().success(false).message("Unauthorized").build());
         }
-        return ResponseEntity.ok(userService.updateProfile(principal.getUserId(), request));
+        return ResponseEntity.ok(userService.updateProfile(principal.getBuyerId(), principal.getUserId(), request));
     }
 
     @DeleteMapping
     public ResponseEntity<GenericResponse> deleteProfile(
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestParam(value = "refreshToken", required = false) String refreshToken) {
-        if (principal != null && principal.getUserId() != null) {
-            userService.softDeleteProfile(principal.getUserId(), principal.getAccessToken(), refreshToken);
+        if (principal != null) {
+            userService.softDeleteProfile(principal.getBuyerId(), principal.getUserId(), principal.getAccessToken(), refreshToken);
         }
         return ResponseEntity.ok(GenericResponse.builder()
                 .success(true)

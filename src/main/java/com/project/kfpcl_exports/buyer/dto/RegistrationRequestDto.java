@@ -30,7 +30,7 @@ public class RegistrationRequestDto {
     }
 
     @NotBlank(message = "Email address is required")
-    @Email(regexp = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$", message = "Please enter a valid email address")
+    @Pattern(regexp = "^[A-Za-z0-9._%+-]+@[gG][mM][aA][iI][lL]\\.[cC][oO][mM]$", message = "Email address must be a valid @gmail.com address (e.g. user@gmail.com)")
     @Size(max = 150, message = "Email cannot exceed 150 characters")
     private String email;
 

@@ -6,6 +6,7 @@ import com.project.kfpcl_exports.buyer.model.Rfq;
 import com.project.kfpcl_exports.buyer.model.RfqResponse;
 import com.project.kfpcl_exports.buyer.repository.RfqRepository;
 import com.project.kfpcl_exports.buyer.repository.RfqResponseRepository;
+import com.project.kfpcl_exports.buyer.service.RfqService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,7 @@ public class RfqController {
     private final com.project.kfpcl_exports.admin.repository.RfqRepository adminRfqRepository;
     private final com.project.kfpcl_exports.admin.repository.QuotationRepository adminQuotationRepository;
     private final com.project.kfpcl_exports.buyer.service.NotificationService notificationService;
+    private final RfqService rfqService;
 
     private Map<String, Object> mapRfqToMap(Rfq rfq) {
         Map<String, Object> map = new HashMap<>();
@@ -86,6 +88,8 @@ public class RfqController {
             map.put("userEmail", buyerEmail);
         }
 
+        Long storeId = rfq.getStoreId();
+        String storeName = rfq.getStoreName();
         try {
             if (rfq.getProduct() != null) {
                 String pName = rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle();
@@ -95,15 +99,34 @@ public class RfqController {
                 map.put("productImage", rfq.getProduct().getMainImageUrl());
                 map.put("mainImageUrl", rfq.getProduct().getMainImageUrl());
                 map.put("price", rfq.getProduct().getIndicativePrice());
-                // Store info from the selected product
-                map.put("storeId", rfq.getProduct().getStoreId());
-                map.put("storeName", rfq.getProduct().getStoreName());
-                // Used by the admin RFQ details card's "Assigned Store" field.
-                map.put("assignedStore", rfq.getProduct().getStoreName());
+                if (storeId == null) {
+                    storeId = rfq.getProduct().getStoreId();
+                }
+                if (storeName == null || storeName.isBlank()) {
+                    storeName = rfq.getProduct().getStoreName();
+                }
             }
         } catch (Exception e) {
             log.warn("Could not load product for RFQ id {}: {}", rfq.getId(), e.getMessage());
         }
+
+        // Legacy RFQs may not have a buyer-product store; use the persisted admin-RFQ snapshot.
+        try {
+            Optional<com.project.kfpcl_exports.admin.model.Rfq> adminRfq = adminRfqRepository.findByRfqNumber(rfq.getRfqCode());
+            if (adminRfq.isPresent()) {
+                if (storeId == null) {
+                    storeId = adminRfq.get().getStoreId();
+                }
+                if (storeName == null || storeName.isBlank()) {
+                    storeName = adminRfq.get().getStoreName();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not load store snapshot for RFQ id {}: {}", rfq.getId(), e.getMessage());
+        }
+        map.put("storeId", storeId);
+        map.put("storeName", storeName);
+        map.put("assignedStore", storeName);
 
         String supplierName = "Awaiting response";
         if (rfq.getLatestResponse() != null) {
@@ -280,6 +303,8 @@ public class RfqController {
         rfq.setStatus(RfqStatus.RESPONDED);
         rfq.setUpdatedAt(LocalDateTime.now());
         buyerRfqRepository.save(rfq);
+        // Re-resolve and persist the selected product's store before saving the quote.
+        rfqService.syncToAdminRfqTable(rfq, "QUOTED");
 
         try {
             com.project.kfpcl_exports.buyer.model.User buyer = rfq.getBuyer();
@@ -310,8 +335,13 @@ public class RfqController {
             adminRfq.setCustomerEmail(rfq.getBuyer() != null ? rfq.getBuyer().getEmail() : null);
             if (rfq.getProduct() != null) {
                 adminRfq.setProductName(rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle());
-                adminRfq.setStoreId(rfq.getProduct().getStoreId());
-                adminRfq.setStoreName(rfq.getProduct().getStoreName());
+            }
+            // Never erase an existing store snapshot with a null buyer-product value.
+            if (rfq.getStoreId() != null) {
+                adminRfq.setStoreId(rfq.getStoreId());
+            }
+            if (rfq.getStoreName() != null && !rfq.getStoreName().isBlank()) {
+                adminRfq.setStoreName(rfq.getStoreName());
             }
             adminRfq.setQuantity(qty);
             adminRfq.setDestinationCountry(rfq.getDeliveryLocation());

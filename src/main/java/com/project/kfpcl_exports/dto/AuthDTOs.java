@@ -272,7 +272,7 @@ public class AuthDTOs {
         @Size(min = 3, message = "Full name must be at least 3 characters")
         private String fullName;
 
-        @Email(message = "Email must be valid")
+        @Pattern(regexp = "^[A-Za-z0-9._%+-]+@[gG][mM][aA][iI][lL]\\.[cC][oO][mM]$", message = "Email address must be a valid @gmail.com address (e.g. user@gmail.com)")
         private String email;
 
         @NotBlank(message = "Company name is required")
@@ -495,7 +495,7 @@ public class AuthDTOs {
         @Size(min = 3, message = "Full name must be at least 3 characters")
         private String fullName;
 
-        @Email(message = "Email must be valid")
+        @Pattern(regexp = "^[A-Za-z0-9._%+-]+@[gG][mM][aA][iI][lL]\\.[cC][oO][mM]$", message = "Email address must be a valid @gmail.com address (e.g. user@gmail.com)")
         private String email;
 
         @NotBlank(message = "Company name is required")
