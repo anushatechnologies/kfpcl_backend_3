@@ -305,12 +305,29 @@ public class AuthService {
         }
 
         String bPhone = clean10.length() == 10 ? clean10 : phoneNumber;
+        String reqEmail = request.getEmail() != null && !request.getEmail().isBlank() ? request.getEmail().trim().toLowerCase() : null;
         com.project.kfpcl_exports.buyer.model.User buyerUser = null;
 
         if (buyerUserRepository != null) {
+            // 1. Validate email uniqueness across different accounts
+            if (reqEmail != null) {
+                Optional<com.project.kfpcl_exports.buyer.model.User> byEmail = buyerUserRepository.findByEmail(reqEmail);
+                if (byEmail.isPresent()) {
+                    com.project.kfpcl_exports.buyer.model.User existingWithEmail = byEmail.get();
+                    String existingPhone = existingWithEmail.getPhoneNumber();
+                    String cleanExisting = existingPhone != null ? existingPhone.replaceAll("[^0-9]", "") : "";
+                    if (cleanExisting.length() > 10) cleanExisting = cleanExisting.substring(cleanExisting.length() - 10);
+
+                    if (!bPhone.equalsIgnoreCase(cleanExisting) && !bPhone.equalsIgnoreCase(existingPhone)) {
+                        throw new IllegalArgumentException("Email address '" + reqEmail + "' is already registered. Please try a different email address.");
+                    }
+                }
+            }
+
+            // 2. Find existing buyer account strictly by phone number
             Optional<com.project.kfpcl_exports.buyer.model.User> existingBuyer = buyerUserRepository.findByPhoneNumber(bPhone);
-            if (existingBuyer.isEmpty() && request.getEmail() != null && !request.getEmail().isBlank()) {
-                existingBuyer = buyerUserRepository.findByEmail(request.getEmail().trim().toLowerCase());
+            if (existingBuyer.isEmpty() && !clean10.isEmpty()) {
+                existingBuyer = buyerUserRepository.findByPhoneNumber(clean10);
             }
 
             com.project.kfpcl_exports.buyer.enums.BusinessType bType = null;
@@ -323,7 +340,7 @@ public class AuthService {
             if (existingBuyer.isPresent()) {
                 buyerUser = existingBuyer.get();
                 buyerUser.setFullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName().trim() : buyerUser.getFullName());
-                buyerUser.setEmail(request.getEmail() != null ? request.getEmail().trim().toLowerCase() : buyerUser.getEmail());
+                buyerUser.setEmail(reqEmail != null ? reqEmail : buyerUser.getEmail());
                 buyerUser.setCompanyName(request.getCompanyName() != null && !request.getCompanyName().isBlank() ? request.getCompanyName().trim() : buyerUser.getCompanyName());
                 if (bType != null) {
                     buyerUser.setBusinessType(bType);
@@ -336,7 +353,7 @@ public class AuthService {
                 buyerUser = com.project.kfpcl_exports.buyer.model.User.builder()
                         .fullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName().trim() : "Buyer User")
                         .phoneNumber(bPhone)
-                        .email(request.getEmail() != null ? request.getEmail().trim().toLowerCase() : null)
+                        .email(reqEmail)
                         .companyName(request.getCompanyName() != null && !request.getCompanyName().isBlank() ? request.getCompanyName().trim() : "KFPCL Buyer")
                         .businessType(bType != null ? bType : com.project.kfpcl_exports.buyer.enums.BusinessType.WHOLESALER)
                         .state(request.getState() != null && !request.getState().isBlank() ? request.getState().trim() : "India")
