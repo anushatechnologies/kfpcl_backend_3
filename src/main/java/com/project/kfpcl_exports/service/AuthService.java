@@ -215,6 +215,35 @@ public class AuthService {
             clean10 = clean10.substring(clean10.length() - 10);
         }
 
+        com.project.kfpcl_exports.buyer.model.User buyer = null;
+        if (buyerUserRepository != null) {
+            if (!clean10.isEmpty()) {
+                buyer = buyerUserRepository.findByPhoneNumber(clean10).orElse(null);
+            }
+            if (buyer == null) {
+                buyer = buyerUserRepository.findByPhoneNumber(phoneNumber).orElse(null);
+            }
+        }
+
+        if (buyer != null) {
+            if (!buyer.isEnabled()) {
+                buyer.setEnabled(true);
+                buyer.setStatus("ACTIVE");
+                buyer = buyerUserRepository.save(buyer);
+            }
+            String accessToken = tokenService.createAccessToken(buyer.getId(), buyer.getPhoneNumber());
+            String refreshToken = tokenService.createRefreshToken(buyer.getId(), buyer.getPhoneNumber());
+
+            return VerifyOtpResponse.builder()
+                    .success(true)
+                    .verified(true)
+                    .isRegistered(true)
+                    .accessToken(accessToken)
+                    .refreshToken(refreshToken)
+                    .user(userService.mapBuyerToProfileResponse(buyer))
+                    .build();
+        }
+
         Optional<User> userOpt = findUserAnywhere(phoneNumber);
 
         if (userOpt.isPresent()) {
@@ -318,43 +347,6 @@ public class AuthService {
                         .build();
             }
             buyerUser = buyerUserRepository.save(buyerUser);
-        }
-
-        // Sync to main users table for Address & FCM features compatibility
-        User savedUser = null;
-        try {
-            Optional<User> existingUserOpt = findUserAnywhere(phoneNumber);
-            User legacyUser;
-            if (existingUserOpt.isPresent()) {
-                legacyUser = existingUserOpt.get();
-                legacyUser.setFullName(request.getFullName());
-                legacyUser.setEmail(request.getEmail());
-                legacyUser.setCompanyName(request.getCompanyName());
-                legacyUser.setBusinessType(request.getBusinessType());
-                legacyUser.setState(request.getState());
-                legacyUser.setCity(request.getCity());
-                legacyUser.setIsActive(true);
-                legacyUser.setIsVerified(true);
-            } else {
-                legacyUser = User.builder()
-                        .phoneNumber(phoneNumber)
-                        .fullName(request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName() : "Buyer User")
-                        .email(request.getEmail())
-                        .companyName(request.getCompanyName() != null && !request.getCompanyName().isBlank() ? request.getCompanyName() : "KFPCL Buyer")
-                        .businessType(request.getBusinessType() != null ? request.getBusinessType() : "WHOLESALER")
-                        .state(request.getState() != null && !request.getState().isBlank() ? request.getState() : "India")
-                        .city(request.getCity() != null && !request.getCity().isBlank() ? request.getCity() : "India")
-                        .isVerified(true)
-                        .isActive(true)
-                        .build();
-            }
-            savedUser = userRepository.save(legacyUser);
-        } catch (Exception ex) {
-            log.warn("Non-fatal sync to legacy users table failed: {}", ex.getMessage());
-        }
-
-        if (savedUser != null && savedUser.getId() != null) {
-            return issueTokensAndSaveFcm(savedUser, request.getFcmToken());
         }
 
         return issueTokensAndSaveFcm(buyerUser, request.getFcmToken());

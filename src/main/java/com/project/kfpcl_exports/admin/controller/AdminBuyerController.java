@@ -7,6 +7,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -17,11 +20,14 @@ import java.util.stream.Collectors;
 public class AdminBuyerController {
 
     private final UserRepository buyerUserRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public AdminBuyerController(
-            @Qualifier("buyerUserRepository") UserRepository buyerUserRepository
+            @Qualifier("buyerUserRepository") UserRepository buyerUserRepository,
+            JdbcTemplate jdbcTemplate
     ) {
         this.buyerUserRepository = buyerUserRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /**
@@ -212,18 +218,69 @@ public class AdminBuyerController {
     }
 
     /**
-     * Delete a buyer by UUID id.
+     * Delete a buyer by UUID id or phone number.
      */
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<?> deleteBuyer(@PathVariable String id) {
-        if (!buyerUserRepository.existsById(id)) {
+        Optional<User> buyerOpt = buyerUserRepository.findById(id);
+        if (buyerOpt.isEmpty()) {
+            buyerOpt = buyerUserRepository.findByPhoneNumber(id);
+        }
+
+        if (buyerOpt.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of(
                     "success", false,
-                    "message", "Buyer not found with id: " + id
+                    "message", "Buyer not found with id or phone: " + id
             ));
         }
 
-        buyerUserRepository.deleteById(id);
+        User buyer = buyerOpt.get();
+        String buyerIdStr = buyer.getId();
+        String phone = buyer.getPhoneNumber();
+        String email = buyer.getEmail();
+
+        // 1. Delete associated RFQs and responses
+        try {
+            jdbcTemplate.update("DELETE FROM rfq_responses WHERE rfq_id IN (SELECT id FROM buyer_rfqs WHERE buyer_id = ?)", buyerIdStr);
+            jdbcTemplate.update("DELETE FROM buyer_rfqs WHERE buyer_id = ?", buyerIdStr);
+        } catch (Exception e) {
+            log.warn("Could not delete RFQs for buyer {}: {}", buyerIdStr, e.getMessage());
+        }
+
+        // 2. Delete associated notifications
+        try {
+            jdbcTemplate.update("DELETE FROM notifications WHERE user_id = ?", buyerIdStr);
+        } catch (Exception e) {
+            log.warn("Could not delete notifications for buyer {}: {}", buyerIdStr, e.getMessage());
+        }
+
+        // 3. Delete associated wishlists
+        try {
+            jdbcTemplate.update("DELETE FROM wishlists WHERE buyer_id = ?", buyerIdStr);
+        } catch (Exception e) {
+            log.warn("Could not delete wishlists for buyer {}: {}", buyerIdStr, e.getMessage());
+        }
+
+        // 4. Delete from buyer_users table
+        buyerUserRepository.delete(buyer);
+
+        // 5. Delete corresponding record from users table if synced by phone/email
+        try {
+            if (phone != null && !phone.isBlank()) {
+                String cleanPhone = phone.replaceAll("[^0-9]", "");
+                if (cleanPhone.length() > 10) cleanPhone = cleanPhone.substring(cleanPhone.length() - 10);
+                if (!cleanPhone.isEmpty()) {
+                    jdbcTemplate.update("DELETE FROM users WHERE phone_number = ? OR phone_number LIKE ?", cleanPhone, "%" + cleanPhone);
+                }
+            }
+            if (email != null && !email.isBlank()) {
+                jdbcTemplate.update("DELETE FROM users WHERE email = ?", email);
+            }
+        } catch (Exception e) {
+            log.warn("Could not delete synced record from users table for buyer {}: {}", buyerIdStr, e.getMessage());
+        }
+
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Buyer deleted successfully"
