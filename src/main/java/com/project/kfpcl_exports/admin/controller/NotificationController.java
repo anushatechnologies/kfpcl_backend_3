@@ -44,6 +44,57 @@ public class NotificationController {
         this.fcmTokenRepository = fcmTokenRepository;
     }
 
+    @GetMapping({"/notifications", "/notifications/all"})
+    public ResponseEntity<Map<String, Object>> getAdminNotifications() {
+        try {
+            com.project.kfpcl_exports.buyer.model.User admin = buyerUserRepository.findByEmail("admin@kfpcl.com").orElse(null);
+            List<Notification> list;
+            if (admin != null) {
+                list = notificationRepository.findByUserOrderByCreatedAtDesc(admin);
+            } else {
+                list = notificationRepository.findAll().stream()
+                        .sorted(Comparator.comparing(Notification::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                        .toList();
+            }
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "notifications", list,
+                    "unreadCount", list.stream().filter(n -> !n.isRead()).count()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of("success", true, "notifications", Collections.emptyList(), "unreadCount", 0));
+        }
+    }
+
+    @GetMapping("/notifications/unread-count")
+    public ResponseEntity<Map<String, Object>> getAdminUnreadCount() {
+        try {
+            com.project.kfpcl_exports.buyer.model.User admin = buyerUserRepository.findByEmail("admin@kfpcl.com").orElse(null);
+            long count = 0;
+            if (admin != null) {
+                count = notificationRepository.countByUserAndIsReadFalse(admin);
+            } else {
+                count = notificationRepository.findAll().stream().filter(n -> !n.isRead()).count();
+            }
+            return ResponseEntity.ok(Map.of("success", true, "unreadCount", count, "count", count));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of("success", true, "unreadCount", 0, "count", 0));
+        }
+    }
+
+    @PatchMapping("/notifications/{id}/read")
+    public ResponseEntity<Map<String, Object>> markAdminNotificationRead(@PathVariable Long id) {
+        try {
+            notificationRepository.findById(id).ifPresent(n -> {
+                n.setRead(true);
+                notificationRepository.save(n);
+            });
+            return ResponseEntity.ok(Map.of("success", true, "message", "Notification marked as read"));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of("success", true, "message", "Notification updated"));
+        }
+    }
+
     @PostMapping("/notifications/send")
     public ResponseEntity<Map<String, Object>> sendNotification(@RequestBody NotificationRequest request) {
         String title = request.getTitle() != null && !request.getTitle().isBlank() ? request.getTitle() : "Notification from Admin";

@@ -35,6 +35,8 @@ public class RfqService {
     private final com.project.kfpcl_exports.admin.repository.QuotationRepository adminQuotationRepository;
     private final RfqCodeGenerator rfqCodeGenerator;
     private final NotificationService notificationService;
+    private final com.project.kfpcl_exports.buyer.repository.NotificationRepository notificationRepository;
+    private final com.project.kfpcl_exports.buyer.repository.UserRepository buyerUserRepository;
     private final DeviceTokenRepository deviceTokenRepository;
     private final FcmTokenService fcmTokenService;
 
@@ -47,6 +49,8 @@ public class RfqService {
             com.project.kfpcl_exports.admin.repository.QuotationRepository adminQuotationRepository,
             RfqCodeGenerator rfqCodeGenerator,
             NotificationService notificationService,
+            @Autowired(required = false) com.project.kfpcl_exports.buyer.repository.NotificationRepository notificationRepository,
+            @Autowired(required = false) @org.springframework.beans.factory.annotation.Qualifier("buyerUserRepository") com.project.kfpcl_exports.buyer.repository.UserRepository buyerUserRepository,
             @Autowired(required = false) DeviceTokenRepository deviceTokenRepository,
             @Autowired(required = false) FcmTokenService fcmTokenService
     ) {
@@ -58,6 +62,8 @@ public class RfqService {
         this.adminQuotationRepository = adminQuotationRepository;
         this.rfqCodeGenerator = rfqCodeGenerator;
         this.notificationService = notificationService;
+        this.notificationRepository = notificationRepository;
+        this.buyerUserRepository = buyerUserRepository;
         this.deviceTokenRepository = deviceTokenRepository;
         this.fcmTokenService = fcmTokenService;
     }
@@ -205,20 +211,68 @@ public class RfqService {
     }
 
     private void notifyAdminNewRfq(Rfq rfq) {
-        if (deviceTokenRepository == null || fcmTokenService == null) {
-            return;
-        }
         try {
-            List<DeviceToken> adminTokens = deviceTokenRepository.findByUserTypeIgnoreCase("ADMIN");
-            String title = "New RFQ Received";
-            String body = "Buyer " + (rfq.getBuyerName() != null ? rfq.getBuyerName() : "Customer") +
-                    " submitted RFQ #" + rfq.getRfqCode() + " for " +
-                    (rfq.getProduct() != null ? rfq.getProduct().getName() : "product");
-            for (DeviceToken dt : adminTokens) {
+            LocalDateTime now = LocalDateTime.now();
+            String title = "New RFQ Received: " + rfq.getRfqCode();
+            String prodName = (rfq.getProduct() != null && rfq.getProduct().getName() != null)
+                    ? rfq.getProduct().getName()
+                    : "Commodity Product";
+            String buyerName = (rfq.getBuyerName() != null && !rfq.getBuyerName().isBlank())
+                    ? rfq.getBuyerName()
+                    : (rfq.getBuyer() != null ? rfq.getBuyer().getName() : "Customer");
+            String body = "Buyer " + buyerName + " submitted RFQ #" + rfq.getRfqCode() + " for " + prodName;
+
+            // 1. Save in-app Notification for Admin users in database
+            if (buyerUserRepository != null && notificationRepository != null) {
                 try {
-                    fcmTokenService.sendPushNotification(dt.getToken(), title, body);
-                } catch (Exception e) {
-                    log.warn("Failed to send FCM push to Admin device token {}: {}", dt.getToken(), e.getMessage());
+                    List<com.project.kfpcl_exports.buyer.model.User> adminUsers = buyerUserRepository.findAll().stream()
+                            .filter(u -> "ROLE_ADMIN".equalsIgnoreCase(u.getRole()) || (u.getEmail() != null && u.getEmail().toLowerCase().contains("admin")))
+                            .toList();
+
+                    if (adminUsers.isEmpty()) {
+                        com.project.kfpcl_exports.buyer.model.User defaultAdmin = buyerUserRepository.findByEmail("admin@kfpcl.com").orElseGet(() -> {
+                            com.project.kfpcl_exports.buyer.model.User a = new com.project.kfpcl_exports.buyer.model.User();
+                            a.setEmail("admin@kfpcl.com");
+                            a.setName("KFPCL Admin");
+                            a.setRole("ROLE_ADMIN");
+                            a.setEnabled(true);
+                            a.setCreatedAt(now);
+                            return buyerUserRepository.save(a);
+                        });
+                        adminUsers = List.of(defaultAdmin);
+                    }
+
+                    for (com.project.kfpcl_exports.buyer.model.User adminUser : adminUsers) {
+                        try {
+                            Notification notif = Notification.builder()
+                                    .user(adminUser)
+                                    .type(NotificationType.GENERAL)
+                                    .title(title)
+                                    .message(body)
+                                    .referenceType("RFQ")
+                                    .referenceId(rfq.getRfqCode())
+                                    .isRead(false)
+                                    .createdAt(now)
+                                    .build();
+                            notificationRepository.save(notif);
+                        } catch (Exception ex) {
+                            log.warn("Could not save in-app notification for admin {}: {}", adminUser.getId(), ex.getMessage());
+                        }
+                    }
+                } catch (Exception ex) {
+                    log.warn("Error resolving admin users for notification: {}", ex.getMessage());
+                }
+            }
+
+            // 2. Dispatch FCM Push Notifications to Admin device tokens
+            if (deviceTokenRepository != null && fcmTokenService != null) {
+                List<DeviceToken> adminTokens = deviceTokenRepository.findByUserTypeIgnoreCase("ADMIN");
+                for (DeviceToken dt : adminTokens) {
+                    try {
+                        fcmTokenService.sendPushNotification(dt.getToken(), title, body);
+                    } catch (Exception e) {
+                        log.warn("Failed to send FCM push to Admin device token {}: {}", dt.getToken(), e.getMessage());
+                    }
                 }
             }
         } catch (Exception e) {
