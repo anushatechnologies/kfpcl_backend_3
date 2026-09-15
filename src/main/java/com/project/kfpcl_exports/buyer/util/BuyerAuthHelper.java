@@ -82,8 +82,8 @@ public class BuyerAuthHelper {
             }
         }
 
-        // 5. Default test buyer fallback
-        return getOrCreateDefaultBuyer();
+        // 5. Unauthenticated guest request
+        return null;
     }
 
     /**

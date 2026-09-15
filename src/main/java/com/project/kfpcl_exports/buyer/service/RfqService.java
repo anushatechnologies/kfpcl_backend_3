@@ -226,7 +226,7 @@ public class RfqService {
             if (buyerUserRepository != null && notificationRepository != null) {
                 try {
                     List<com.project.kfpcl_exports.buyer.model.User> adminUsers = buyerUserRepository.findAll().stream()
-                            .filter(u -> "ROLE_ADMIN".equalsIgnoreCase(u.getRole()) || (u.getEmail() != null && u.getEmail().toLowerCase().contains("admin")))
+                            .filter(u -> "ROLE_ADMIN".equalsIgnoreCase(u.getRole()))
                             .toList();
 
                     if (adminUsers.isEmpty()) {
