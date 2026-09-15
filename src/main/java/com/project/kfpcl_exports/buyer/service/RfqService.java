@@ -285,6 +285,9 @@ public class RfqService {
      */
     @Transactional(readOnly = true)
     public Page<BuyerRfqResponseDto> getBuyerRfqs(User buyer, RfqStatus status, Pageable pageable) {
+        if (buyer == null) {
+            return Page.empty(pageable);
+        }
         Page<Rfq> page;
         try {
             if (status != null) {
@@ -294,8 +297,8 @@ public class RfqService {
             }
         } catch (Exception ex) {
             log.warn("Standard buyer RFQ query encountered error ({}), falling back to native query", ex.getMessage());
-            String buyerId = buyer != null ? buyer.getId() : "";
-            String phone = buyer != null ? buyer.getPhoneNumber() : "";
+            String buyerId = buyer.getId() != null ? buyer.getId() : "";
+            String phone = buyer.getPhoneNumber() != null ? buyer.getPhoneNumber() : "";
             String statusStr = status != null ? status.name() : null;
             page = rfqRepository.findRfqsNative(buyerId, phone, statusStr, pageable);
         }
@@ -507,13 +510,15 @@ public class RfqService {
     // =========================================================================
 
     private Rfq findRfqAndValidateOwnership(String rfqIdOrCode, User buyer) {
+        if (buyer == null) {
+            throw RfqException.accessDenied("Authentication required to access RFQ");
+        }
         Rfq rfq = findRfqByIdOrCode(rfqIdOrCode);
-        if (buyer != null) {
-            boolean matchesId = rfq.getBuyer() != null && rfq.getBuyer().getId() != null && rfq.getBuyer().getId().equals(buyer.getId());
-            boolean matchesPhone = rfq.getBuyerPhone() != null && buyer.getPhoneNumber() != null && rfq.getBuyerPhone().equals(buyer.getPhoneNumber());
-            if (!matchesId && !matchesPhone) {
-                throw RfqException.accessDenied("Access denied: RFQ does not belong to you");
-            }
+        boolean matchesId = rfq.getBuyer() != null && rfq.getBuyer().getId() != null && rfq.getBuyer().getId().equals(buyer.getId());
+        boolean matchesPhone = rfq.getBuyerPhone() != null && buyer.getPhoneNumber() != null && rfq.getBuyerPhone().equals(buyer.getPhoneNumber());
+        boolean matchesEmail = rfq.getBuyer() != null && rfq.getBuyer().getEmail() != null && buyer.getEmail() != null && rfq.getBuyer().getEmail().equalsIgnoreCase(buyer.getEmail());
+        if (!matchesId && !matchesPhone && !matchesEmail) {
+            throw RfqException.accessDenied("Access denied: RFQ does not belong to you");
         }
         return rfq;
     }

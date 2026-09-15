@@ -124,6 +124,7 @@ public class BuyerRfqController {
     @GetMapping({"", "/buyer/{buyerId}"})
     public ResponseEntity<ApiResponse<Page<BuyerRfqResponseDto>>> getBuyerRfqs(
             @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable(required = false) String buyerId,
             @RequestParam(required = false) RfqStatus status,
             @RequestParam(required = false) String email,
             @RequestParam(required = false) String userEmail,
@@ -134,27 +135,32 @@ public class BuyerRfqController {
             @RequestParam(defaultValue = "10") int size,
             HttpServletRequest httpRequest
     ) {
-        String targetIdentifier = null;
-        if (email != null && !email.isBlank()) targetIdentifier = email;
-        else if (userEmail != null && !userEmail.isBlank()) targetIdentifier = userEmail;
-        else if (buyerPhone != null && !buyerPhone.isBlank()) targetIdentifier = buyerPhone;
-        else if (phoneNumber != null && !phoneNumber.isBlank()) targetIdentifier = phoneNumber;
-        else if (phone != null && !phone.isBlank()) targetIdentifier = phone;
-
-        User buyer = null;
-        try {
-            if (targetIdentifier != null && !targetIdentifier.isBlank()) {
-                buyer = buyerAuthHelper.resolveFromIdentifier(targetIdentifier);
-            } else {
-                buyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
-            }
-        } catch (Exception ignored) {}
-
-        if (buyer == null) {
+        User authBuyer = buyerAuthHelper.resolveAuthenticatedBuyer(userDetails, httpRequest);
+        if (authBuyer == null) {
             return ResponseEntity.ok(ApiResponse.ok("No RFQs found for guest", Page.empty()));
         }
+
+        String targetIdentifier = null;
+        if (buyerId != null && !buyerId.isBlank()) targetIdentifier = buyerId.trim();
+        else if (email != null && !email.isBlank()) targetIdentifier = email.trim();
+        else if (userEmail != null && !userEmail.isBlank()) targetIdentifier = userEmail.trim();
+        else if (buyerPhone != null && !buyerPhone.isBlank()) targetIdentifier = buyerPhone.trim();
+        else if (phoneNumber != null && !phoneNumber.isBlank()) targetIdentifier = phoneNumber.trim();
+        else if (phone != null && !phone.isBlank()) targetIdentifier = phone.trim();
+
+        if (targetIdentifier != null && !targetIdentifier.isBlank()) {
+            User targetBuyer = buyerAuthHelper.resolveFromIdentifier(targetIdentifier);
+            if (targetBuyer != null && targetBuyer.getId() != null && !targetBuyer.getId().equals(authBuyer.getId())) {
+                boolean matchesPhone = targetBuyer.getPhoneNumber() != null && authBuyer.getPhoneNumber() != null && targetBuyer.getPhoneNumber().equals(authBuyer.getPhoneNumber());
+                boolean matchesEmail = targetBuyer.getEmail() != null && authBuyer.getEmail() != null && targetBuyer.getEmail().equalsIgnoreCase(authBuyer.getEmail());
+                if (!matchesPhone && !matchesEmail) {
+                    throw com.project.kfpcl_exports.buyer.exception.RfqException.accessDenied("Access denied: Cannot view RFQs belonging to another user");
+                }
+            }
+        }
+
         Pageable pageable = PageRequest.of(page, size);
-        Page<BuyerRfqResponseDto> responses = rfqService.getBuyerRfqs(buyer, status, pageable);
+        Page<BuyerRfqResponseDto> responses = rfqService.getBuyerRfqs(authBuyer, status, pageable);
         return ResponseEntity.ok(ApiResponse.ok("Buyer RFQs fetched successfully", responses));
     }
 

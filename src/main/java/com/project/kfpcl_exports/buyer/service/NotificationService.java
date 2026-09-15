@@ -57,12 +57,15 @@ public class NotificationService {
      */
     @Transactional(readOnly = true)
     public List<NotificationResponseDto> getBuyerNotifications(User user) {
+        if (user == null) {
+            return java.util.Collections.emptyList();
+        }
         List<Notification> list;
         try {
             list = notificationRepository.findByUserOrderByCreatedAtDesc(user);
         } catch (Exception ex) {
             log.warn("Standard notifications query failed ({}), falling back to native query", ex.getMessage());
-            list = notificationRepository.findByUserIdNative(user != null ? user.getId() : "");
+            list = notificationRepository.findByUserIdNative(user.getId() != null ? user.getId() : "");
         }
         return list.stream()
                 .map(this::mapToDto)
@@ -73,10 +76,13 @@ public class NotificationService {
      * Mark a single notification belonging to the buyer as read.
      */
     public void markNotificationRead(User user, Long notificationId) {
+        if (user == null) {
+            throw new ResourceNotFoundException("Notification not found with id: " + notificationId);
+        }
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found with id: " + notificationId));
 
-        if (notification.getUser() != null && !notification.getUser().getId().equals(user.getId())) {
+        if (notification.getUser() == null || !notification.getUser().getId().equals(user.getId())) {
             throw new ResourceNotFoundException("Notification not found with id: " + notificationId);
         }
 
@@ -90,6 +96,7 @@ public class NotificationService {
      * Mark all notifications belonging strictly to the authenticated buyer as read.
      */
     public void markAllNotificationsRead(User user) {
+        if (user == null) return;
         try {
             notificationRepository.markAllAsReadForUser(user);
         } catch (Exception ignored) {}
@@ -100,11 +107,14 @@ public class NotificationService {
      */
     @Transactional(readOnly = true)
     public long getUnreadCount(User user) {
+        if (user == null) {
+            return 0;
+        }
         try {
             return notificationRepository.countByUserAndIsReadFalse(user);
         } catch (Exception ex) {
             log.warn("Standard notification count failed ({}), falling back to native query", ex.getMessage());
-            return notificationRepository.countByUserIdAndIsReadFalseNative(user != null ? user.getId() : "");
+            return notificationRepository.countByUserIdAndIsReadFalseNative(user.getId() != null ? user.getId() : "");
         }
     }
 
