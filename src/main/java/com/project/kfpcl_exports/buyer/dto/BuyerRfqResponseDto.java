@@ -31,6 +31,10 @@ public class BuyerRfqResponseDto {
     private String subject;
     private String buyerMessage;
     private String fileUrl;
+    private String storeId;
+    private String storeName;
+    private String assignedStore;
+    private String buyerCompany;
     private RfqStatus status;
     private Long parentRfqId;
     private String parentRfqCode;

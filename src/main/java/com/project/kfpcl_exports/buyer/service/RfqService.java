@@ -592,12 +592,27 @@ public class RfqService {
 
         String bName = rfq.getBuyerName();
         String bPhone = rfq.getBuyerPhone();
+        String buyerCompany = null;
         try {
             if (rfq.getBuyer() != null) {
                 if (bName == null || bName.isBlank()) bName = rfq.getBuyer().getName();
                 if (bPhone == null || bPhone.isBlank()) bPhone = rfq.getBuyer().getPhoneNumber();
+                buyerCompany = rfq.getBuyer().getCompanyName();
             }
         } catch (Exception ignored) {}
+
+        if (buyerCompany == null || buyerCompany.isBlank()) {
+            buyerCompany = bName != null ? bName : "KFPCL Buyer";
+        }
+
+        String assignedStore = null;
+        if (rfq.getProduct() != null && rfq.getProduct().getStoreName() != null && !rfq.getProduct().getStoreName().isBlank()) {
+            assignedStore = rfq.getProduct().getStoreName();
+        } else if (rfq.getStoreName() != null && !rfq.getStoreName().isBlank()) {
+            assignedStore = rfq.getStoreName();
+        } else {
+            assignedStore = "KFPCL Central Export Warehouse";
+        }
 
         return BuyerRfqResponseDto.builder()
                 .id(rfq.getId())
@@ -609,6 +624,10 @@ public class RfqService {
                 .productName(prodTitle)
                 .buyerName(bName)
                 .buyerPhone(bPhone)
+                .buyerCompany(buyerCompany)
+                .storeName(buyerCompany)
+                .storeId(rfq.getStoreId() != null ? rfq.getStoreId().toString() : null)
+                .assignedStore(assignedStore)
                 .quantity(rfq.getQuantity())
                 .unit(unit)
                 .deliveryLocation(rfq.getDeliveryLocation())

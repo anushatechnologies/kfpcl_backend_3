@@ -63,12 +63,14 @@ public class RfqController {
         String buyerPhone = rfq.getBuyerPhone();
         String buyerId = null;
         String buyerEmail = null;
+        String buyerCompany = null;
 
         try {
             com.project.kfpcl_exports.buyer.model.User buyer = rfq.getBuyer();
             if (buyer != null) {
                 buyerId = buyer.getId();
                 buyerEmail = buyer.getEmail();
+                buyerCompany = buyer.getCompanyName();
                 if (buyerName == null || buyerName.isBlank()) {
                     buyerName = buyer.getName();
                 }
@@ -80,8 +82,15 @@ public class RfqController {
             log.warn("Could not load buyer for RFQ id {}: {}", rfq.getId(), e.getMessage());
         }
 
+        if (buyerCompany == null || buyerCompany.isBlank()) {
+            buyerCompany = (buyerName != null && !buyerName.isBlank()) ? buyerName : "KFPCL Buyer";
+        }
+
         map.put("buyerName", buyerName);
         map.put("buyerPhone", buyerPhone);
+        map.put("buyerCompany", buyerCompany);
+        map.put("storeName", buyerCompany);
+
         if (buyerId != null) {
             map.put("buyerId", buyerId);
             map.put("buyerEmail", buyerEmail);
@@ -89,7 +98,8 @@ public class RfqController {
         }
 
         Long storeId = rfq.getStoreId();
-        String storeName = rfq.getStoreName();
+        String assignedStore = null;
+
         try {
             if (rfq.getProduct() != null) {
                 String pName = rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle();
@@ -102,31 +112,39 @@ public class RfqController {
                 if (storeId == null) {
                     storeId = rfq.getProduct().getStoreId();
                 }
-                if (storeName == null || storeName.isBlank()) {
-                    storeName = rfq.getProduct().getStoreName();
+                if (assignedStore == null || assignedStore.isBlank()) {
+                    assignedStore = rfq.getProduct().getStoreName();
                 }
             }
         } catch (Exception e) {
             log.warn("Could not load product for RFQ id {}: {}", rfq.getId(), e.getMessage());
         }
 
-        // Legacy RFQs may not have a buyer-product store; use the persisted admin-RFQ snapshot.
+        if (assignedStore == null || assignedStore.isBlank()) {
+            assignedStore = rfq.getStoreName();
+        }
+
+        // Legacy RFQs snapshot fallback
         try {
             Optional<com.project.kfpcl_exports.admin.model.Rfq> adminRfq = adminRfqRepository.findByRfqNumber(rfq.getRfqCode());
             if (adminRfq.isPresent()) {
                 if (storeId == null) {
                     storeId = adminRfq.get().getStoreId();
                 }
-                if (storeName == null || storeName.isBlank()) {
-                    storeName = adminRfq.get().getStoreName();
+                if (assignedStore == null || assignedStore.isBlank()) {
+                    assignedStore = adminRfq.get().getStoreName();
                 }
             }
         } catch (Exception e) {
             log.warn("Could not load store snapshot for RFQ id {}: {}", rfq.getId(), e.getMessage());
         }
+
+        if (assignedStore == null || assignedStore.isBlank()) {
+            assignedStore = "KFPCL Central Export Warehouse";
+        }
+
         map.put("storeId", storeId);
-        map.put("storeName", storeName);
-        map.put("assignedStore", storeName);
+        map.put("assignedStore", assignedStore);
 
         String supplierName = "Awaiting response";
         if (rfq.getLatestResponse() != null) {
