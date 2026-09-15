@@ -88,10 +88,6 @@ public class OtpService {
         if (otpInput == null || otpInput.isBlank()) {
             return false;
         }
-        // Universal test OTP bypass for testing & development
-        if ("123456".equals(otpInput.trim())) {
-            return true;
-        }
 
         String normalizedPhone = normalizePhoneNumber(phoneNumber);
         OtpData otpData = otpStorage.get(normalizedPhone);
