@@ -36,6 +36,7 @@ public class RfqController {
     private final RfqResponseRepository rfqResponseRepository;
     private final com.project.kfpcl_exports.admin.repository.RfqRepository adminRfqRepository;
     private final com.project.kfpcl_exports.admin.repository.QuotationRepository adminQuotationRepository;
+    private final com.project.kfpcl_exports.admin.repository.ProductRepository adminProductRepository;
     private final com.project.kfpcl_exports.buyer.service.NotificationService notificationService;
     private final RfqService rfqService;
 
@@ -102,18 +103,45 @@ public class RfqController {
 
         try {
             if (rfq.getProduct() != null) {
-                String pName = rfq.getProduct().getName() != null ? rfq.getProduct().getName() : rfq.getProduct().getTitle();
-                map.put("productId", rfq.getProduct().getId());
+                com.project.kfpcl_exports.buyer.model.Product bp = rfq.getProduct();
+                String pName = bp.getName() != null ? bp.getName() : bp.getTitle();
+                map.put("productId", bp.getId());
                 map.put("productTitle", pName);
                 map.put("productName", pName);
-                map.put("productImage", rfq.getProduct().getMainImageUrl());
-                map.put("mainImageUrl", rfq.getProduct().getMainImageUrl());
-                map.put("price", rfq.getProduct().getIndicativePrice());
+                map.put("productImage", bp.getMainImageUrl());
+                map.put("mainImageUrl", bp.getMainImageUrl());
+
+                Object priceVal = null;
+                if (bp.getIndicativePrice() != null && !bp.getIndicativePrice().isBlank()) {
+                    priceVal = bp.getIndicativePrice();
+                } else if (bp.getNumericPrice() != null) {
+                    priceVal = String.format("%.2f", bp.getNumericPrice());
+                } else if (bp.getOriginalPrice() != null) {
+                    priceVal = String.format("%.2f", bp.getOriginalPrice());
+                } else if (bp.getPrice() != null && bp.getPrice() > 0) {
+                    priceVal = String.format("%.2f", bp.getPrice());
+                }
+
+                if (priceVal == null && bp.getId() != null) {
+                    try {
+                        com.project.kfpcl_exports.admin.model.Product ap = adminProductRepository.findById(bp.getId()).orElse(null);
+                        if (ap != null) {
+                            if (ap.getPrice() != null && ap.getPrice() > 0) {
+                                priceVal = String.format("%.2f", ap.getPrice());
+                            } else if (ap.getOriginalPrice() != null && ap.getOriginalPrice() > 0) {
+                                priceVal = String.format("%.2f", ap.getOriginalPrice());
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                map.put("price", priceVal);
+
                 if (storeId == null) {
-                    storeId = rfq.getProduct().getStoreId();
+                    storeId = bp.getStoreId();
                 }
                 if (assignedStore == null || assignedStore.isBlank()) {
-                    assignedStore = rfq.getProduct().getStoreName();
+                    assignedStore = bp.getStoreName();
                 }
             }
         } catch (Exception e) {
