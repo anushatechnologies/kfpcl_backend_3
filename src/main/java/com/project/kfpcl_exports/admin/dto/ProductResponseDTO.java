@@ -44,6 +44,9 @@ public class ProductResponseDTO {
     @Builder.Default
     private List<ProductImage> images = new ArrayList<>();
 
+    @Builder.Default
+    private List<ProductVariantDTO> variants = new ArrayList<>();
+
     private LocalDateTime createdAt;
 
     @JsonProperty("imageUrl")
@@ -85,6 +88,22 @@ public class ProductResponseDTO {
                     .build();
         }
 
+        List<ProductVariantDTO> variantDTOs = new ArrayList<>();
+        if (product.getVariants() != null && !product.getVariants().isEmpty()) {
+            for (com.project.kfpcl_exports.admin.model.ProductVariant v : product.getVariants()) {
+                variantDTOs.add(ProductVariantDTO.builder()
+                        .id(v.getId())
+                        .name(v.getName())
+                        .sku(v.getSku())
+                        .price(v.getPrice())
+                        .discountPrice(v.getDiscountPrice())
+                        .stock(v.getStock())
+                        .isActive(v.getIsActive())
+                        .displayOrder(v.getDisplayOrder())
+                        .build());
+            }
+        }
+
         return ProductResponseDTO.builder()
                 .id(product.getId())
                 .title(product.getTitle())
@@ -106,6 +125,7 @@ public class ProductResponseDTO {
                 .trending(product.getTrending())
                 .active(product.getActive())
                 .images(product.getImages() != null ? new ArrayList<>(product.getImages()) : new ArrayList<>())
+                .variants(variantDTOs)
                 .createdAt(product.getCreatedAt())
                 .build();
     }

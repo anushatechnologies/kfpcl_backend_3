@@ -138,9 +138,23 @@ public class Product {
 
     private Boolean active;
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
     private List<ProductImage> images = new ArrayList<>();
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @Builder.Default
+    private List<ProductVariant> variants = new ArrayList<>();
+
+    public void setVariants(List<ProductVariant> newVariants) {
+        this.variants.clear();
+        if (newVariants != null) {
+            for (ProductVariant v : newVariants) {
+                v.setProduct(this);
+                this.variants.add(v);
+            }
+        }
+    }
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

@@ -90,6 +90,25 @@ public class ProductService {
         if (request.getTrending() != null) product.setTrending(request.getTrending());
         if (request.getActive() != null) product.setActive(request.getActive());
 
+        if (request.getVariants() != null) {
+            List<com.project.kfpcl_exports.admin.model.ProductVariant> variantList = request.getVariants().stream().map(vDto -> {
+                com.project.kfpcl_exports.admin.model.ProductVariant v = new com.project.kfpcl_exports.admin.model.ProductVariant();
+                if (vDto.getId() != null) {
+                    v.setId(vDto.getId());
+                }
+                v.setName(vDto.getName());
+                v.setSku(vDto.getSku());
+                v.setPrice(vDto.getPrice());
+                v.setDiscountPrice(vDto.getDiscountPrice());
+                v.setStock(vDto.getStock() != null ? vDto.getStock() : 0);
+                v.setIsActive(vDto.getIsActive() != null ? vDto.getIsActive() : true);
+                v.setDisplayOrder(vDto.getDisplayOrder() != null ? vDto.getDisplayOrder() : 1);
+                v.setProduct(product);
+                return v;
+            }).collect(Collectors.toList());
+            product.setVariants(variantList);
+        }
+
         // Associate or update Store
         if (request.getStoreId() != null || StringUtils.hasText(request.getStoreName())) {
             associateStore(product, request.getStoreId(), request.getStoreName());
@@ -162,6 +181,25 @@ public class ProductService {
         product.setReviewCount(request.getReviewCount());
         product.setTrending(request.getTrending());
         product.setActive(request.getActive());
+
+        if (request.getVariants() != null) {
+            List<com.project.kfpcl_exports.admin.model.ProductVariant> variantList = request.getVariants().stream().map(vDto -> {
+                com.project.kfpcl_exports.admin.model.ProductVariant v = new com.project.kfpcl_exports.admin.model.ProductVariant();
+                if (vDto.getId() != null) {
+                    v.setId(vDto.getId());
+                }
+                v.setName(vDto.getName());
+                v.setSku(vDto.getSku());
+                v.setPrice(vDto.getPrice());
+                v.setDiscountPrice(vDto.getDiscountPrice());
+                v.setStock(vDto.getStock() != null ? vDto.getStock() : 0);
+                v.setIsActive(vDto.getIsActive() != null ? vDto.getIsActive() : true);
+                v.setDisplayOrder(vDto.getDisplayOrder() != null ? vDto.getDisplayOrder() : 1);
+                v.setProduct(product);
+                return v;
+            }).collect(Collectors.toList());
+            product.setVariants(variantList);
+        }
     }
 
     private Boolean isStoreFieldExplicitlySet(ProductRequestDTO request) {

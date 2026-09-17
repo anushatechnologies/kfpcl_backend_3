@@ -52,4 +52,6 @@ public class ProductRequestDTO {
     private Boolean trending;
 
     private Boolean active;
+
+    private java.util.List<ProductVariantDTO> variants;
 }
