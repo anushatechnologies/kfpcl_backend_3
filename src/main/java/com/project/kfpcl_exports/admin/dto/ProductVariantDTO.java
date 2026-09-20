@@ -20,35 +20,14 @@ public class ProductVariantDTO {
     @JsonAlias({"name", "variantName", "variant_name", "variantValue", "variant_value", "value", "variant"})
     private String name;
 
-    @JsonAlias({"unit", "variantUnit", "variant_unit"})
-    private String unit;
-
     @JsonProperty("variantName")
     public String getVariantName() {
-        return getEffectiveName();
+        return name != null ? name.trim() : "";
     }
 
     @JsonProperty("value")
     public String getValue() {
-        return name;
-    }
-
-    @JsonProperty("unit")
-    public String getUnit() {
-        return unit;
-    }
-
-    public String getEffectiveName() {
-        if (name != null && !name.isBlank()) {
-            if (unit != null && !unit.isBlank() && !name.toLowerCase().contains(unit.toLowerCase())) {
-                return name.trim() + " " + unit.trim();
-            }
-            return name.trim();
-        }
-        if (unit != null && !unit.isBlank()) {
-            return unit.trim();
-        }
-        return "";
+        return name != null ? name.trim() : "";
     }
 
     private String sku;

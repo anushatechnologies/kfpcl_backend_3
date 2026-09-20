@@ -57,7 +57,6 @@ public class ProductService {
                     varMap.put("name", v.getName());
                     varMap.put("variantName", v.getName());
                     varMap.put("value", v.getName());
-                    varMap.put("unit", ap.getUnit());
                     varMap.put("sku", v.getSku());
                     varMap.put("price", v.getPrice() != null ? v.getPrice() : 0.0);
                     varMap.put("discountPrice", v.getDiscountPrice());
