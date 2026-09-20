@@ -51,23 +51,40 @@ public class ProductService {
 
         if (variants != null && !variants.isEmpty()) {
             for (com.project.kfpcl_exports.admin.model.ProductVariant v : variants) {
-                if (v.getIsActive() == null || v.getIsActive()) {
+                if (v.getIsActive() == null || Boolean.TRUE.equals(v.getIsActive())) {
                     java.util.Map<String, Object> varMap = new java.util.LinkedHashMap<>();
                     varMap.put("id", v.getId());
                     varMap.put("name", v.getName());
                     varMap.put("variantName", v.getName());
                     varMap.put("value", v.getName());
                     varMap.put("sku", v.getSku());
-                    varMap.put("price", v.getPrice() != null ? v.getPrice() : 0.0);
+                    varMap.put("price", v.getPrice() != null ? v.getPrice() : price);
                     varMap.put("discountPrice", v.getDiscountPrice());
-                    varMap.put("mrp", v.getPrice() != null ? v.getPrice() : 0.0);
-                    varMap.put("stockQuantity", v.getStock() != null ? v.getStock() : 0);
-                    varMap.put("stock", v.getStock() != null ? v.getStock() : 0);
+                    varMap.put("mrp", v.getPrice() != null ? v.getPrice() : originalPrice);
+                    varMap.put("stockQuantity", v.getStock() != null ? v.getStock() : (ap.getStock() != null ? ap.getStock() : 100));
+                    varMap.put("stock", v.getStock() != null ? v.getStock() : (ap.getStock() != null ? ap.getStock() : 100));
                     varMap.put("isActive", v.getIsActive() != null ? v.getIsActive() : true);
                     varMap.put("displayOrder", v.getDisplayOrder() != null ? v.getDisplayOrder() : 1);
                     mappedVariants.add(varMap);
                 }
             }
+        }
+
+        if (mappedVariants.isEmpty()) {
+            String vName = buildDefaultVariantName(ap.getUnit(), ap.getTitle());
+            java.util.Map<String, Object> defaultVar = new java.util.LinkedHashMap<>();
+            defaultVar.put("id", ap.getId() != null ? ap.getId() : 1L);
+            defaultVar.put("name", vName);
+            defaultVar.put("variantName", vName);
+            defaultVar.put("value", vName);
+            defaultVar.put("price", price);
+            defaultVar.put("discountPrice", (originalPrice > price) ? price : null);
+            defaultVar.put("mrp", originalPrice);
+            defaultVar.put("stockQuantity", ap.getStock() != null ? ap.getStock() : 100);
+            defaultVar.put("stock", ap.getStock() != null ? ap.getStock() : 100);
+            defaultVar.put("isActive", ap.getActive() != null ? ap.getActive() : true);
+            defaultVar.put("displayOrder", 1);
+            mappedVariants.add(defaultVar);
         }
 
         Product buyerProd = Product.builder()
@@ -91,6 +108,21 @@ public class ProductService {
 
         buyerProd.setVariants(mappedVariants);
         return buyerProd;
+    }
+
+    private String buildDefaultVariantName(String unit, String title) {
+        if (unit != null && !unit.isBlank()) {
+            String trimmedUnit = unit.trim();
+            if (trimmedUnit.matches("(?i)^\\d+.*")) {
+                return trimmedUnit;
+            } else {
+                return "1 " + trimmedUnit;
+            }
+        }
+        if (title != null && !title.isBlank()) {
+            return title.trim();
+        }
+        return "Standard pack";
     }
 
     public Page<Product> getFilteredProducts(Long categoryId, Long subcategoryId, int page, int limit,
@@ -137,22 +169,21 @@ public class ProductService {
         if (p == null || p.getId() == null) return;
         List<java.util.Map<String, Object>> mappedVariants = new java.util.ArrayList<>();
         if (productVariantRepository != null) {
-            List<com.project.kfpcl_exports.admin.model.ProductVariant> variants = productVariantRepository.findByProductIdAndIsActiveTrue(p.getId());
+            List<com.project.kfpcl_exports.admin.model.ProductVariant> variants = productVariantRepository.findByProductId(p.getId());
             if (variants != null && !variants.isEmpty()) {
                 for (com.project.kfpcl_exports.admin.model.ProductVariant v : variants) {
-                    if (v.getIsActive() == null || v.getIsActive()) {
+                    if (v.getIsActive() == null || Boolean.TRUE.equals(v.getIsActive())) {
                         java.util.Map<String, Object> varMap = new java.util.LinkedHashMap<>();
                         varMap.put("id", v.getId());
                         varMap.put("name", v.getName());
                         varMap.put("variantName", v.getName());
                         varMap.put("value", v.getName());
-                        varMap.put("unit", p.getUnit());
                         varMap.put("sku", v.getSku());
-                        varMap.put("price", v.getPrice() != null ? v.getPrice() : 0.0);
+                        varMap.put("price", v.getPrice() != null ? v.getPrice() : p.getPrice());
                         varMap.put("discountPrice", v.getDiscountPrice());
-                        varMap.put("mrp", v.getPrice() != null ? v.getPrice() : 0.0);
-                        varMap.put("stockQuantity", v.getStock() != null ? v.getStock() : 0);
-                        varMap.put("stock", v.getStock() != null ? v.getStock() : 0);
+                        varMap.put("mrp", v.getPrice() != null ? v.getPrice() : p.getMrp());
+                        varMap.put("stockQuantity", v.getStock() != null ? v.getStock() : (p.getStockQuantity() != null ? p.getStockQuantity() : 100));
+                        varMap.put("stock", v.getStock() != null ? v.getStock() : (p.getStockQuantity() != null ? p.getStockQuantity() : 100));
                         varMap.put("isActive", v.getIsActive() != null ? v.getIsActive() : true);
                         varMap.put("displayOrder", v.getDisplayOrder() != null ? v.getDisplayOrder() : 1);
                         mappedVariants.add(varMap);
@@ -160,6 +191,26 @@ public class ProductService {
                 }
             }
         }
+
+        if (mappedVariants.isEmpty()) {
+            String vName = buildDefaultVariantName(p.getUnit(), p.getName());
+            Double price = p.getPrice() != null ? p.getPrice() : 0.0;
+            Double mrp = p.getMrp() != null ? p.getMrp() : price;
+            java.util.Map<String, Object> defaultVar = new java.util.LinkedHashMap<>();
+            defaultVar.put("id", p.getId());
+            defaultVar.put("name", vName);
+            defaultVar.put("variantName", vName);
+            defaultVar.put("value", vName);
+            defaultVar.put("price", price);
+            defaultVar.put("discountPrice", (mrp > price) ? price : null);
+            defaultVar.put("mrp", mrp);
+            defaultVar.put("stockQuantity", p.getStockQuantity() != null ? p.getStockQuantity() : 100);
+            defaultVar.put("stock", p.getStockQuantity() != null ? p.getStockQuantity() : 100);
+            defaultVar.put("isActive", p.getIsActive() != null ? p.getIsActive() : true);
+            defaultVar.put("displayOrder", 1);
+            mappedVariants.add(defaultVar);
+        }
+
         p.setVariants(mappedVariants);
     }
 
