@@ -56,6 +56,8 @@ public class ProductService {
                     varMap.put("id", v.getId());
                     varMap.put("name", v.getName());
                     varMap.put("variantName", v.getName());
+                    varMap.put("value", v.getName());
+                    varMap.put("unit", ap.getUnit());
                     varMap.put("sku", v.getSku());
                     varMap.put("price", v.getPrice() != null ? v.getPrice() : 0.0);
                     varMap.put("discountPrice", v.getDiscountPrice());
@@ -88,10 +90,7 @@ public class ProductService {
                 .createdAt(ap.getCreatedAt())
                 .build();
 
-        if (!mappedVariants.isEmpty()) {
-            buyerProd.setVariants(mappedVariants);
-        }
-
+        buyerProd.setVariants(mappedVariants);
         return buyerProd;
     }
 
@@ -136,31 +135,33 @@ public class ProductService {
     }
 
     private void populateVariantsForBuyerProduct(Product p) {
-        if (p == null || p.getId() == null || productVariantRepository == null) return;
-        List<com.project.kfpcl_exports.admin.model.ProductVariant> variants = productVariantRepository.findByProductIdAndIsActiveTrue(p.getId());
-        if (variants != null && !variants.isEmpty()) {
-            List<java.util.Map<String, Object>> mappedVariants = new java.util.ArrayList<>();
-            for (com.project.kfpcl_exports.admin.model.ProductVariant v : variants) {
-                if (v.getIsActive() == null || v.getIsActive()) {
-                    java.util.Map<String, Object> varMap = new java.util.LinkedHashMap<>();
-                    varMap.put("id", v.getId());
-                    varMap.put("name", v.getName());
-                    varMap.put("variantName", v.getName());
-                    varMap.put("sku", v.getSku());
-                    varMap.put("price", v.getPrice() != null ? v.getPrice() : 0.0);
-                    varMap.put("discountPrice", v.getDiscountPrice());
-                    varMap.put("mrp", v.getPrice() != null ? v.getPrice() : 0.0);
-                    varMap.put("stockQuantity", v.getStock() != null ? v.getStock() : 0);
-                    varMap.put("stock", v.getStock() != null ? v.getStock() : 0);
-                    varMap.put("isActive", v.getIsActive() != null ? v.getIsActive() : true);
-                    varMap.put("displayOrder", v.getDisplayOrder() != null ? v.getDisplayOrder() : 1);
-                    mappedVariants.add(varMap);
+        if (p == null || p.getId() == null) return;
+        List<java.util.Map<String, Object>> mappedVariants = new java.util.ArrayList<>();
+        if (productVariantRepository != null) {
+            List<com.project.kfpcl_exports.admin.model.ProductVariant> variants = productVariantRepository.findByProductIdAndIsActiveTrue(p.getId());
+            if (variants != null && !variants.isEmpty()) {
+                for (com.project.kfpcl_exports.admin.model.ProductVariant v : variants) {
+                    if (v.getIsActive() == null || v.getIsActive()) {
+                        java.util.Map<String, Object> varMap = new java.util.LinkedHashMap<>();
+                        varMap.put("id", v.getId());
+                        varMap.put("name", v.getName());
+                        varMap.put("variantName", v.getName());
+                        varMap.put("value", v.getName());
+                        varMap.put("unit", p.getUnit());
+                        varMap.put("sku", v.getSku());
+                        varMap.put("price", v.getPrice() != null ? v.getPrice() : 0.0);
+                        varMap.put("discountPrice", v.getDiscountPrice());
+                        varMap.put("mrp", v.getPrice() != null ? v.getPrice() : 0.0);
+                        varMap.put("stockQuantity", v.getStock() != null ? v.getStock() : 0);
+                        varMap.put("stock", v.getStock() != null ? v.getStock() : 0);
+                        varMap.put("isActive", v.getIsActive() != null ? v.getIsActive() : true);
+                        varMap.put("displayOrder", v.getDisplayOrder() != null ? v.getDisplayOrder() : 1);
+                        mappedVariants.add(varMap);
+                    }
                 }
             }
-            if (!mappedVariants.isEmpty()) {
-                p.setVariants(mappedVariants);
-            }
         }
+        p.setVariants(mappedVariants);
     }
 
     public List<String> getSearchSuggestions(String prefix) {
@@ -190,7 +191,9 @@ public class ProductService {
         if (!adminResults.isEmpty()) {
             return adminResults.stream().map(this::mapAdminToBuyerProduct).collect(Collectors.toList());
         }
-        return productRepository.fullTextSearch(query.trim());
+        List<Product> buyerResults = productRepository.fullTextSearch(query.trim());
+        buyerResults.forEach(this::populateVariantsForBuyerProduct);
+        return buyerResults;
     }
 
     public List<Product> getTrendingProducts() {
@@ -202,6 +205,7 @@ public class ProductService {
         if (list.isEmpty()) {
             return adminProductRepository.findAll().stream().map(this::mapAdminToBuyerProduct).collect(Collectors.toList());
         }
+        list.forEach(this::populateVariantsForBuyerProduct);
         return list;
     }
 
@@ -210,7 +214,9 @@ public class ProductService {
         if (!adminAll.isEmpty()) {
             return adminAll.stream().map(this::mapAdminToBuyerProduct).collect(Collectors.toList());
         }
-        return productRepository.findBestsellers(PageRequest.of(0, 10));
+        List<Product> list = productRepository.findBestsellers(PageRequest.of(0, 10));
+        list.forEach(this::populateVariantsForBuyerProduct);
+        return list;
     }
 }
 

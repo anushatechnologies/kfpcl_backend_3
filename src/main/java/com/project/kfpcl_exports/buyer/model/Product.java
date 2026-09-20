@@ -183,27 +183,7 @@ public class Product {
 
     @com.fasterxml.jackson.annotation.JsonProperty("variants")
     public java.util.List<java.util.Map<String, Object>> getVariants() {
-        if (customVariants != null && !customVariants.isEmpty()) {
-            return customVariants;
-        }
-        java.util.List<java.util.Map<String, Object>> vars = new java.util.ArrayList<>();
-        Double p = getPrice();
-        Double m = getMrp();
-        int stock = (stockQuantity != null && stockQuantity > 0) ? stockQuantity : 100;
-        String vName = (unit != null && !unit.isBlank()) ? "1 " + unit : ((name != null && !name.isBlank()) ? name + " (Standard pack)" : "Standard pack");
-
-        java.util.Map<String, Object> standardVariant = new java.util.LinkedHashMap<>();
-        standardVariant.put("id", id != null ? id : 1L);
-        standardVariant.put("name", vName);
-        standardVariant.put("variantName", vName);
-        standardVariant.put("price", p != null ? p : 0.0);
-        standardVariant.put("discountPrice", (m != null && p != null && m > p) ? p : null);
-        standardVariant.put("mrp", m != null ? m : p);
-        standardVariant.put("stockQuantity", stock);
-        standardVariant.put("stock", stock);
-        standardVariant.put("isActive", isActive != null ? isActive : true);
-        vars.add(standardVariant);
-        return vars;
+        return customVariants != null ? customVariants : java.util.Collections.emptyList();
     }
 }
 
