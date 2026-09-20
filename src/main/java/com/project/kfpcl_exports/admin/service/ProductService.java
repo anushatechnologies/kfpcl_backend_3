@@ -20,6 +20,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import com.project.kfpcl_exports.admin.dto.ProductVariantDTO;
+import com.project.kfpcl_exports.admin.model.ProductVariant;
+import com.project.kfpcl_exports.admin.repository.ProductVariantRepository;
+
 @Service("adminProductService")
 @RequiredArgsConstructor
 @Transactional
@@ -28,6 +32,7 @@ public class ProductService {
     private static final Logger log = LoggerFactory.getLogger(ProductService.class);
 
     private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final StoreRepository storeRepository;
     private final CategoryRepository categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
@@ -200,6 +205,86 @@ public class ProductService {
             }).collect(Collectors.toList());
             product.setVariants(variantList);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductVariantDTO> getVariantsByProductId(Long productId) {
+        return productVariantRepository.findByProductIdOrderByDisplayOrderAscIdAsc(productId).stream()
+                .map(v -> ProductVariantDTO.builder()
+                        .id(v.getId())
+                        .name(v.getName())
+                        .sku(v.getSku())
+                        .price(v.getPrice())
+                        .discountPrice(v.getDiscountPrice())
+                        .stock(v.getStock())
+                        .isActive(v.getIsActive())
+                        .displayOrder(v.getDisplayOrder())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    public ProductVariantDTO addVariantToProduct(Long productId, ProductVariantDTO dto) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found with id: " + productId));
+
+        ProductVariant variant = ProductVariant.builder()
+                .name(dto.getName())
+                .sku(dto.getSku())
+                .price(dto.getPrice() != null ? dto.getPrice() : 0.0)
+                .discountPrice(dto.getDiscountPrice())
+                .stock(dto.getStock() != null ? dto.getStock() : 0)
+                .isActive(dto.getIsActive() != null ? dto.getIsActive() : true)
+                .displayOrder(dto.getDisplayOrder() != null ? dto.getDisplayOrder() : 1)
+                .product(product)
+                .build();
+
+        ProductVariant saved = productVariantRepository.save(variant);
+        return ProductVariantDTO.builder()
+                .id(saved.getId())
+                .name(saved.getName())
+                .sku(saved.getSku())
+                .price(saved.getPrice())
+                .discountPrice(saved.getDiscountPrice())
+                .stock(saved.getStock())
+                .isActive(saved.getIsActive())
+                .displayOrder(saved.getDisplayOrder())
+                .build();
+    }
+
+    public Optional<ProductVariantDTO> updateProductVariant(Long productId, Long variantId, ProductVariantDTO dto) {
+        Optional<ProductVariant> vOpt = productVariantRepository.findById(variantId);
+        if (vOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        ProductVariant variant = vOpt.get();
+        if (dto.getName() != null) variant.setName(dto.getName());
+        if (dto.getSku() != null) variant.setSku(dto.getSku());
+        if (dto.getPrice() != null) variant.setPrice(dto.getPrice());
+        if (dto.getDiscountPrice() != null) variant.setDiscountPrice(dto.getDiscountPrice());
+        if (dto.getStock() != null) variant.setStock(dto.getStock());
+        if (dto.getIsActive() != null) variant.setIsActive(dto.getIsActive());
+        if (dto.getDisplayOrder() != null) variant.setDisplayOrder(dto.getDisplayOrder());
+
+        ProductVariant updated = productVariantRepository.save(variant);
+        return Optional.of(ProductVariantDTO.builder()
+                .id(updated.getId())
+                .name(updated.getName())
+                .sku(updated.getSku())
+                .price(updated.getPrice())
+                .discountPrice(updated.getDiscountPrice())
+                .stock(updated.getStock())
+                .isActive(updated.getIsActive())
+                .displayOrder(updated.getDisplayOrder())
+                .build());
+    }
+
+    public boolean deleteProductVariant(Long productId, Long variantId) {
+        Optional<ProductVariant> vOpt = productVariantRepository.findById(variantId);
+        if (vOpt.isPresent()) {
+            productVariantRepository.deleteById(variantId);
+            return true;
+        }
+        return false;
     }
 
     private Boolean isStoreFieldExplicitlySet(ProductRequestDTO request) {

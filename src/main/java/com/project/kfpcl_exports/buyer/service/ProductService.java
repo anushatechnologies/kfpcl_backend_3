@@ -25,6 +25,9 @@ public class ProductService {
     @Autowired
     private com.project.kfpcl_exports.admin.repository.ProductRepository adminProductRepository;
 
+    @Autowired
+    private com.project.kfpcl_exports.admin.repository.ProductVariantRepository productVariantRepository;
+
     private Product mapAdminToBuyerProduct(com.project.kfpcl_exports.admin.model.Product ap) {
         if (ap == null) return null;
         Category cat = null;
@@ -40,7 +43,33 @@ public class ProductService {
         Double price = ap.getPrice() != null ? ap.getPrice() : 0.0;
         Double originalPrice = (ap.getOriginalPrice() != null && ap.getOriginalPrice() > 0) ? ap.getOriginalPrice() : price;
 
-        return Product.builder()
+        List<java.util.Map<String, Object>> mappedVariants = new java.util.ArrayList<>();
+        List<com.project.kfpcl_exports.admin.model.ProductVariant> variants = ap.getVariants();
+        if ((variants == null || variants.isEmpty()) && ap.getId() != null && productVariantRepository != null) {
+            variants = productVariantRepository.findByProductIdAndIsActiveTrue(ap.getId());
+        }
+
+        if (variants != null && !variants.isEmpty()) {
+            for (com.project.kfpcl_exports.admin.model.ProductVariant v : variants) {
+                if (v.getIsActive() == null || v.getIsActive()) {
+                    java.util.Map<String, Object> varMap = new java.util.LinkedHashMap<>();
+                    varMap.put("id", v.getId());
+                    varMap.put("name", v.getName());
+                    varMap.put("variantName", v.getName());
+                    varMap.put("sku", v.getSku());
+                    varMap.put("price", v.getPrice() != null ? v.getPrice() : 0.0);
+                    varMap.put("discountPrice", v.getDiscountPrice());
+                    varMap.put("mrp", v.getPrice() != null ? v.getPrice() : 0.0);
+                    varMap.put("stockQuantity", v.getStock() != null ? v.getStock() : 0);
+                    varMap.put("stock", v.getStock() != null ? v.getStock() : 0);
+                    varMap.put("isActive", v.getIsActive() != null ? v.getIsActive() : true);
+                    varMap.put("displayOrder", v.getDisplayOrder() != null ? v.getDisplayOrder() : 1);
+                    mappedVariants.add(varMap);
+                }
+            }
+        }
+
+        Product buyerProd = Product.builder()
                 .id(ap.getId())
                 .name(ap.getTitle())
                 .description(ap.getDescription())
@@ -58,6 +87,12 @@ public class ProductService {
                 .subcategory(subcat)
                 .createdAt(ap.getCreatedAt())
                 .build();
+
+        if (!mappedVariants.isEmpty()) {
+            buyerProd.setVariants(mappedVariants);
+        }
+
+        return buyerProd;
     }
 
     public Page<Product> getFilteredProducts(Long categoryId, Long subcategoryId, int page, int limit,
@@ -83,7 +118,11 @@ public class ProductService {
             return new PageImpl<>(pageContent, pageable, adminMapped.size());
         }
 
-        return productRepository.filterProducts(categoryId, subcategoryId, minPrice, maxPrice, query, pageable);
+        Page<Product> buyerPage = productRepository.filterProducts(categoryId, subcategoryId, minPrice, maxPrice, query, pageable);
+        if (buyerPage != null && buyerPage.getContent() != null) {
+            buyerPage.getContent().forEach(this::populateVariantsForBuyerProduct);
+        }
+        return buyerPage;
     }
 
     public Optional<Product> getProductById(Long id) {
@@ -91,7 +130,37 @@ public class ProductService {
         if (adminOpt.isPresent()) {
             return adminOpt.map(this::mapAdminToBuyerProduct);
         }
-        return productRepository.findById(id).filter(p -> p.getIsActive() != null && p.getIsActive());
+        Optional<Product> buyerOpt = productRepository.findById(id).filter(p -> p.getIsActive() != null && p.getIsActive());
+        buyerOpt.ifPresent(this::populateVariantsForBuyerProduct);
+        return buyerOpt;
+    }
+
+    private void populateVariantsForBuyerProduct(Product p) {
+        if (p == null || p.getId() == null || productVariantRepository == null) return;
+        List<com.project.kfpcl_exports.admin.model.ProductVariant> variants = productVariantRepository.findByProductIdAndIsActiveTrue(p.getId());
+        if (variants != null && !variants.isEmpty()) {
+            List<java.util.Map<String, Object>> mappedVariants = new java.util.ArrayList<>();
+            for (com.project.kfpcl_exports.admin.model.ProductVariant v : variants) {
+                if (v.getIsActive() == null || v.getIsActive()) {
+                    java.util.Map<String, Object> varMap = new java.util.LinkedHashMap<>();
+                    varMap.put("id", v.getId());
+                    varMap.put("name", v.getName());
+                    varMap.put("variantName", v.getName());
+                    varMap.put("sku", v.getSku());
+                    varMap.put("price", v.getPrice() != null ? v.getPrice() : 0.0);
+                    varMap.put("discountPrice", v.getDiscountPrice());
+                    varMap.put("mrp", v.getPrice() != null ? v.getPrice() : 0.0);
+                    varMap.put("stockQuantity", v.getStock() != null ? v.getStock() : 0);
+                    varMap.put("stock", v.getStock() != null ? v.getStock() : 0);
+                    varMap.put("isActive", v.getIsActive() != null ? v.getIsActive() : true);
+                    varMap.put("displayOrder", v.getDisplayOrder() != null ? v.getDisplayOrder() : 1);
+                    mappedVariants.add(varMap);
+                }
+            }
+            if (!mappedVariants.isEmpty()) {
+                p.setVariants(mappedVariants);
+            }
+        }
     }
 
     public List<String> getSearchSuggestions(String prefix) {

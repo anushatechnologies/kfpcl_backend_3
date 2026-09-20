@@ -79,5 +79,14 @@ public class AdminProductVariantTest {
                 .andExpect(jsonPath("$.variants", hasSize(2)))
                 .andExpect(jsonPath("$.variants[0].sku", is("TD-500G")))
                 .andExpect(jsonPath("$.variants[1].sku", is("TD-1KG")));
+
+        // Test Buyer API endpoint returns the variants with variantName field
+        mockMvc.perform(get("/api/buyer/products/" + createdId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.variants", hasSize(2)))
+                .andExpect(jsonPath("$.variants[0].name", is("500g")))
+                .andExpect(jsonPath("$.variants[0].variantName", is("500g")))
+                .andExpect(jsonPath("$.variants[1].name", is("1kg")))
+                .andExpect(jsonPath("$.variants[1].variantName", is("1kg")));
     }
 }

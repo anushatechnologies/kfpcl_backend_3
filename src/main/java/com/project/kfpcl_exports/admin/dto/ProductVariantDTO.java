@@ -17,7 +17,13 @@ public class ProductVariantDTO {
 
     private Long id;
 
+    @JsonAlias({"name", "variantName", "variant_name"})
     private String name;
+
+    @JsonProperty("variantName")
+    public String getVariantName() {
+        return name;
+    }
 
     private String sku;
 
@@ -26,7 +32,13 @@ public class ProductVariantDTO {
     @JsonAlias({"discountPrice", "discount_price"})
     private Double discountPrice;
 
+    @JsonAlias({"stock", "stockQuantity", "stock_quantity"})
     private Integer stock;
+
+    @JsonProperty("stockQuantity")
+    public Integer getStockQuantity() {
+        return stock;
+    }
 
     @JsonAlias({"active", "isActive", "is_active"})
     @JsonProperty("isActive")

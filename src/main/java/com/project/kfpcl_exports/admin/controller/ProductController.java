@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import com.project.kfpcl_exports.admin.repository.StoreRepository;
 import com.project.kfpcl_exports.admin.dto.ProductRequestDTO;
 import com.project.kfpcl_exports.admin.dto.ProductResponseDTO;
+import com.project.kfpcl_exports.admin.dto.ProductVariantDTO;
 import com.project.kfpcl_exports.admin.service.ProductService;
 
 @RestController("adminProductController")
@@ -112,6 +113,9 @@ public class ProductController {
             if (StringUtils.hasText(productJson)) {
                 try {
                     product = objectMapper.readValue(productJson, Product.class);
+                    if (product.getVariants() != null && !product.getVariants().isEmpty()) {
+                        product.setVariants(product.getVariants());
+                    }
                 } catch (Exception e) {
                     log.warn("Could not parse product JSON parameter: {}", e.getMessage());
                 }
@@ -294,6 +298,9 @@ public class ProductController {
                         product.setTrending(parsed.getTrending());
                     if (parsed.getActive() != null)
                         product.setActive(parsed.getActive());
+                    if (parsed.getVariants() != null) {
+                        product.setVariants(parsed.getVariants());
+                    }
                 } catch (Exception e) {
                     log.warn("Could not parse product JSON parameter: {}", e.getMessage());
                 }
@@ -630,5 +637,37 @@ public class ProductController {
                         product.setStoreName(store.getName());
                     });
         }
+    }
+
+    // Product Variant Endpoints
+    @GetMapping("/{productId}/variants")
+    public ResponseEntity<List<ProductVariantDTO>> getProductVariants(@PathVariable Long productId) {
+        return ResponseEntity.ok(productService.getVariantsByProductId(productId));
+    }
+
+    @PostMapping("/{productId}/variants")
+    public ResponseEntity<ProductVariantDTO> addProductVariant(@PathVariable Long productId,
+            @RequestBody ProductVariantDTO variantDTO) {
+        ProductVariantDTO saved = productService.addVariantToProduct(productId, variantDTO);
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+
+    @PutMapping("/{productId}/variants/{variantId}")
+    public ResponseEntity<ProductVariantDTO> updateProductVariant(@PathVariable Long productId,
+            @PathVariable Long variantId,
+            @RequestBody ProductVariantDTO variantDTO) {
+        return productService.updateProductVariant(productId, variantId, variantDTO)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{productId}/variants/{variantId}")
+    public ResponseEntity<Map<String, Object>> deleteProductVariant(@PathVariable Long productId,
+            @PathVariable Long variantId) {
+        boolean deleted = productService.deleteProductVariant(productId, variantId);
+        if (deleted) {
+            return ResponseEntity.ok(Map.of("message", "Product variant deleted", "success", true));
+        }
+        return ResponseEntity.notFound().build();
     }
 }
