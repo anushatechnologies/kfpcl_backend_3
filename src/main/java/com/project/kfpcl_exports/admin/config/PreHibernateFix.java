@@ -21,6 +21,12 @@ public class PreHibernateFix {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
 
+            String dbName = conn.getMetaData().getDatabaseProductName().toLowerCase();
+            if (!dbName.contains("mysql")) {
+                log.info("Database is '{}'. Skipping MySQL-specific pre-Hibernate fixes.", dbName);
+                return;
+            }
+
             // Disable foreign key checks for table modifications
             stmt.execute("SET FOREIGN_KEY_CHECKS = 0");
 

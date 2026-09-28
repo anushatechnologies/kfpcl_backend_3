@@ -17,6 +17,16 @@ public class DbMigrationFix implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        try (Connection conn = jdbcTemplate.getDataSource().getConnection()) {
+            String db = conn.getMetaData().getDatabaseProductName().toLowerCase();
+            if (!db.contains("mysql")) {
+                log.info("Database is '{}'. Skipping MySQL-specific schema fixes.", db);
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("Could not determine database type: {}", e.getMessage());
+        }
+
         // 1. Drop stale FK on product_images
         dropForeignKeyIfExists("product_images", "FK1fjygue3p6b77m88e795sv5r9");
 
