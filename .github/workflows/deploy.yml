@@ -45,9 +45,20 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
+          echo "=== DIAGNOSTICS ==="
+          echo "EC2_HOST length: ${#EC2_HOST}"
+          echo "EC2_USER length: ${#EC2_USER}"
+          echo "SSH_KEY length: ${#SSH_KEY}"
+
+          if [ -z "$SSH_KEY" ]; then
+            echo "❌ CRITICAL ERROR: The secret EC2_SSH_KEY is empty or not found in GitHub Secrets!"
+            echo "Please check GitHub -> Settings -> Secrets and variables -> Actions -> Repository secrets."
+            exit 1
+          fi
+
           mkdir -p ~/.ssh
 
-          # Reconstruct perfect PEM RSA format (resolves libcrypto error)
+          # Reconstruct clean PEM RSA format
           python3 -c "
           import os
           key = os.environ.get('SSH_KEY', '').strip()
@@ -55,12 +66,19 @@ jobs:
           content = content.replace('-----BEGIN OPENSSH PRIVATE KEY-----', '').replace('-----END OPENSSH PRIVATE KEY-----', '')
           content = content.replace('-----BEGIN PRIVATE KEY-----', '').replace('-----END PRIVATE KEY-----', '')
           b64 = ''.join(content.split())
+          if not b64:
+              raise ValueError('Private key content is empty!')
           chunks = [b64[i:i+64] for i in range(0, len(b64), 64)]
           formatted_key = '-----BEGIN RSA PRIVATE KEY-----\n' + '\n'.join(chunks) + '\n-----END RSA PRIVATE KEY-----\n'
           with open(os.path.expanduser('~/.ssh/id_rsa'), 'w') as f:
               f.write(formatted_key)
           "
           chmod 600 ~/.ssh/id_rsa
+
+          # Verify key file with ssh-keygen
+          echo "Verifying private key with ssh-keygen..."
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+          echo "Key is valid! Public key fingerprint generated."
 
           SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o HostkeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
 
