@@ -1,28 +1,13 @@
-name: KFPCL Backend CI/CD
+name: KFPCL Backend CI/CD (Direct SSH to EC2)
 
 on:
   push:
     branches:
       - main
 
-env:
-  AWS_REGION: ap-south-2
-  ECR_REGISTRY: 319759856065.dkr.ecr.ap-south-2.amazonaws.com
-  ECR_REPOSITORY: kfpcl-backend
-  ECS_CLUSTER: kfpcl-cluster
-  ECS_SERVICE: kfpcl-backend-service
-
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
-
-  # ==========================================
-  # 1. BUILD
-  # ==========================================
-  build:
-    name: 1. Build
+  build-and-deploy:
+    name: Build & Deploy to EC2
     runs-on: ubuntu-latest
 
     steps:
@@ -34,7 +19,9 @@ jobs:
           FIREBASE_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: |
           mkdir -p src/main/resources
-          printf "%s" "$FIREBASE_SECRET" > src/main/resources/serviceAccountKey.json
+          if [ -n "$FIREBASE_SECRET" ]; then
+            printf "%s" "$FIREBASE_SECRET" > src/main/resources/serviceAccountKey.json
+          fi
 
       - name: Setup Java 21
         uses: actions/setup-java@v4
@@ -43,110 +30,32 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Build application
+      - name: Build with Maven
         run: mvn -B clean package -DskipTests
 
-  # ==========================================
-  # 2. PUSH TO ECR
-  # ==========================================
-  push-to-ecr:
-    name: 2. Push to ECR
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
-
-      - name: Create Firebase Service Account JSON
-        env:
-          FIREBASE_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      - name: Find JAR file
         run: |
-          mkdir -p src/main/resources
-          printf "%s" "$FIREBASE_SECRET" > src/main/resources/serviceAccountKey.json
+          JAR_FILE=$(ls target/*.jar | head -n 1)
+          echo "Found JAR: $JAR_FILE"
+          cp "$JAR_FILE" target/app.jar
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Copy JAR to EC2 via SCP
+        uses: appleboy/scp-action@v0.1.7
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "target/app.jar"
+          target: "/home/ubuntu/app"
+          strip_components: 1
 
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build Docker image
-        run: |
-          docker build \
-            -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
-            .
-
-          docker tag \
-            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
-            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
-
-      - name: Push image to ECR
-        run: |
-          docker push \
-            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-
-          docker push \
-            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
-
-  # ==========================================
-  # 3. DEPLOY TO ECS
-  # ==========================================
-  deploy:
-    name: 3. Deploy to ECS
-    needs: push-to-ecr
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Restart Backend Service via SSH
+        uses: appleboy/ssh-action@v1.2.0
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo systemctl restart kfpcl-backend
+            sudo systemctl status kfpcl-backend --no-pager
 
-      # ==========================================
-      # VERIFY AWS ACCOUNT / REGION / ECS SERVICE
-      # ==========================================
-      - name: Verify AWS ECS
-        run: |
-          echo "=========================================="
-          echo "AWS REGION: $AWS_REGION"
-          echo "ECS CLUSTER: $ECS_CLUSTER"
-          echo "ECS SERVICE: $ECS_SERVICE"
-          echo "=========================================="
-
-          echo "===== AWS ACCOUNT ====="
-          aws sts get-caller-identity
-
-          echo "===== ECS SERVICE ====="
-          aws ecs describe-services \
-            --cluster "$ECS_CLUSTER" \
-            --services "$ECS_SERVICE" \
-            --region "$AWS_REGION"
-
-      # ==========================================
-      # DEPLOY
-      # ==========================================
-      - name: Deploy latest image to ECS
-        run: |
-          aws ecs update-service \
-            --cluster "$ECS_CLUSTER" \
-            --service "$ECS_SERVICE" \
-            --force-new-deployment \
-            --region "$AWS_REGION"
-
-      # ==========================================
-      # WAIT FOR DEPLOYMENT
-      # ==========================================
-      - name: Wait for ECS deployment
-        run: |
-          aws ecs wait services-stable \
-            --cluster "$ECS_CLUSTER" \
-            --services "$ECS_SERVICE" \
-            --region "$AWS_REGION"
-
-      - name: Deployment completed
-        run: echo "KFPCL backend deployed successfully!"
