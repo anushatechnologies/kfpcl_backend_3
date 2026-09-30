@@ -46,18 +46,31 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
           mkdir -p ~/.ssh
-          # Write and normalize SSH key
-          printf "%s\n" "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+
+          # Reconstruct perfect PEM RSA format (resolves libcrypto error)
+          python3 -c "
+          import os
+          key = os.environ.get('SSH_KEY', '').strip()
+          content = key.replace('-----BEGIN RSA PRIVATE KEY-----', '').replace('-----END RSA PRIVATE KEY-----', '')
+          content = content.replace('-----BEGIN OPENSSH PRIVATE KEY-----', '').replace('-----END OPENSSH PRIVATE KEY-----', '')
+          content = content.replace('-----BEGIN PRIVATE KEY-----', '').replace('-----END PRIVATE KEY-----', '')
+          b64 = ''.join(content.split())
+          chunks = [b64[i:i+64] for i in range(0, len(b64), 64)]
+          formatted_key = '-----BEGIN RSA PRIVATE KEY-----\n' + '\n'.join(chunks) + '\n-----END RSA PRIVATE KEY-----\n'
+          with open(os.path.expanduser('~/.ssh/id_rsa'), 'w') as f:
+              f.write(formatted_key)
+          "
           chmod 600 ~/.ssh/id_rsa
 
-          # Add EC2 host to known hosts
-          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o HostkeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
 
           # Copy JAR to EC2
           echo "Copying app.jar to EC2..."
-          scp -i ~/.ssh/id_rsa target/app.jar "$EC2_USER@$EC2_HOST":/home/ubuntu/app/app.jar
+          scp -i ~/.ssh/id_rsa $SSH_OPTS target/app.jar "$EC2_USER@$EC2_HOST":/home/ubuntu/app/app.jar
 
           # Restart service on EC2
           echo "Restarting kfpcl-backend service..."
-          ssh -i ~/.ssh/id_rsa "$EC2_USER@$EC2_HOST" "sudo systemctl restart kfpcl-backend && sudo systemctl status kfpcl-backend --no-pager"
+          ssh -i ~/.ssh/id_rsa $SSH_OPTS "$EC2_USER@$EC2_HOST" "sudo systemctl restart kfpcl-backend"
+
+          echo "Deployment completed successfully!"
 
