@@ -39,23 +39,25 @@ jobs:
           echo "Found JAR: $JAR_FILE"
           cp "$JAR_FILE" target/app.jar
 
-      - name: Copy JAR to EC2 via SCP
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "target/app.jar"
-          target: "/home/ubuntu/app"
-          strip_components: 1
+      - name: Deploy to EC2 via Native SSH & SCP
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          # Write and normalize SSH key
+          printf "%s\n" "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
-      - name: Restart Backend Service via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            sudo systemctl restart kfpcl-backend
-            sudo systemctl status kfpcl-backend --no-pager
+          # Add EC2 host to known hosts
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+          # Copy JAR to EC2
+          echo "Copying app.jar to EC2..."
+          scp -i ~/.ssh/id_rsa target/app.jar "$EC2_USER@$EC2_HOST":/home/ubuntu/app/app.jar
+
+          # Restart service on EC2
+          echo "Restarting kfpcl-backend service..."
+          ssh -i ~/.ssh/id_rsa "$EC2_USER@$EC2_HOST" "sudo systemctl restart kfpcl-backend && sudo systemctl status kfpcl-backend --no-pager"
 
