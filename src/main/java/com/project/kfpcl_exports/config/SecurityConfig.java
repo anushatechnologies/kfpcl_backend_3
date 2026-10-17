@@ -1,7 +1,6 @@
 package com.project.kfpcl_exports.config;
 
 import com.project.kfpcl_exports.security.TokenAuthenticationFilter;
-import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -22,10 +21,13 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final TokenAuthenticationFilter tokenAuthenticationFilter;
+
+    public SecurityConfig(TokenAuthenticationFilter tokenAuthenticationFilter) {
+        this.tokenAuthenticationFilter = tokenAuthenticationFilter;
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -72,6 +74,7 @@ public class SecurityConfig {
                                 "/api/stores/**",
                                 "/api/banners/**",
                                 "/api/media/**",
+                                "/api/loan-applications",
                                 "/api/loan-applications/**",
                                 "/api/loans/**",
                                 "/api/policies/**",

@@ -449,11 +449,25 @@ public class AuthDTOs {
         private String refreshToken;
         private UserProfileResponse user;
 
+        @JsonProperty("isRegistered")
+        private Boolean isRegistered;
+
+        private String verificationToken;
+
         public TokenResponse() {}
         public TokenResponse(String accessToken, String refreshToken, UserProfileResponse user) {
             this.accessToken = accessToken;
             this.refreshToken = refreshToken;
             this.user = user;
+            this.isRegistered = true;
+        }
+
+        public TokenResponse(String accessToken, String refreshToken, UserProfileResponse user, Boolean isRegistered, String verificationToken) {
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            this.user = user;
+            this.isRegistered = isRegistered;
+            this.verificationToken = verificationToken;
         }
 
         public String getAccessToken() { return accessToken; }
@@ -462,15 +476,24 @@ public class AuthDTOs {
         public void setRefreshToken(String refreshToken) { this.refreshToken = refreshToken; }
         public UserProfileResponse getUser() { return user; }
         public void setUser(UserProfileResponse user) { this.user = user; }
+        public Boolean getIsRegistered() { return isRegistered; }
+        public void setIsRegistered(Boolean isRegistered) { this.isRegistered = isRegistered; }
+        public String getVerificationToken() { return verificationToken; }
+        public void setVerificationToken(String verificationToken) { this.verificationToken = verificationToken; }
 
         public static TokenResponseBuilder builder() { return new TokenResponseBuilder(); }
         public static class TokenResponseBuilder {
             private String accessToken, refreshToken;
             private UserProfileResponse user;
+            private Boolean isRegistered;
+            private String verificationToken;
+
             public TokenResponseBuilder accessToken(String v) { accessToken = v; return this; }
             public TokenResponseBuilder refreshToken(String v) { refreshToken = v; return this; }
             public TokenResponseBuilder user(UserProfileResponse v) { user = v; return this; }
-            public TokenResponse build() { return new TokenResponse(accessToken, refreshToken, user); }
+            public TokenResponseBuilder isRegistered(Boolean v) { isRegistered = v; return this; }
+            public TokenResponseBuilder verificationToken(String v) { verificationToken = v; return this; }
+            public TokenResponse build() { return new TokenResponse(accessToken, refreshToken, user, isRegistered, verificationToken); }
         }
     }
 

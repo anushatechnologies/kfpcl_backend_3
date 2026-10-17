@@ -13,6 +13,7 @@ import java.util.Optional;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 @Slf4j
@@ -25,6 +26,13 @@ public class AuthService {
     private final TokenService tokenService;
     private final UserService userService;
     private final FcmTokenService fcmTokenService;
+    private final FirebaseAuthService firebaseAuthService;
+
+    @Value("${kfpcl.auth.direct-sms.enabled:false}")
+    private boolean directSmsEnabled;
+
+    @Value("${kfpcl.auth.test-otp.enabled:false}")
+    private boolean testOtpEnabled;
 
     public AuthService(
             @Qualifier("mainUserRepository") UserRepository userRepository,
@@ -33,7 +41,8 @@ public class AuthService {
             OtpService otpService,
             TokenService tokenService,
             UserService userService,
-            FcmTokenService fcmTokenService
+            FcmTokenService fcmTokenService,
+            FirebaseAuthService firebaseAuthService
     ) {
         this.userRepository = userRepository;
         this.buyerUserRepository = buyerUserRepository;
@@ -42,6 +51,7 @@ public class AuthService {
         this.tokenService = tokenService;
         this.userService = userService;
         this.fcmTokenService = fcmTokenService;
+        this.firebaseAuthService = firebaseAuthService;
     }
 
     public Optional<User> findUserAnywhere(String rawPhone) {
@@ -165,28 +175,39 @@ public class AuthService {
     }
 
     public SendOtpResponse sendOtp(SendOtpRequest request) {
+        if (!directSmsEnabled && !testOtpEnabled) {
+            throw new IllegalStateException("Direct SMS delivery is not supported. Please authenticate via Firebase Phone Authentication (/api/auth/firebase-login).");
+        }
         String phoneNumber = request.getPhoneNumber().trim();
         otpService.generateAndSendOtp(phoneNumber);
 
+        String message = directSmsEnabled ? "OTP sent successfully" : "OTP generated in test mode";
         return SendOtpResponse.builder()
                 .success(true)
-                .message("OTP sent successfully")
+                .message(message)
                 .expiresInSeconds(otpService.getOtpTtlSeconds())
                 .build();
     }
 
     public SendOtpResponse resendOtp(ResendOtpRequest request) {
+        if (!directSmsEnabled && !testOtpEnabled) {
+            throw new IllegalStateException("Direct SMS delivery is not supported. Please authenticate via Firebase Phone Authentication (/api/auth/firebase-login).");
+        }
         String phoneNumber = request.getPhoneNumber().trim();
         otpService.generateAndSendOtp(phoneNumber);
 
+        String message = directSmsEnabled ? "Replacement OTP sent successfully" : "Replacement OTP generated in test mode";
         return SendOtpResponse.builder()
                 .success(true)
-                .message("Replacement OTP sent successfully")
+                .message(message)
                 .expiresInSeconds(otpService.getOtpTtlSeconds())
                 .build();
     }
 
     public OtpDebugResponse getOtpForPhone(String phoneNumber) {
+        if (!testOtpEnabled) {
+            throw new IllegalStateException("Debug OTP retrieval is disabled in production.");
+        }
         OtpService.OtpData data = otpService.getActiveOtpData(phoneNumber.trim());
         if (data == null) {
             throw new IllegalArgumentException("No active OTP found for phone number: " + phoneNumber + ". Please request /send-otp first.");
@@ -291,14 +312,8 @@ public class AuthService {
         String phoneNumber = !clean10.isEmpty() ? clean10 : rawPhone;
 
         String vToken = request.getVerificationToken();
-        boolean isVerificationValid = (vToken != null && !vToken.isBlank()) && (
-                tokenService.validateVerificationToken(vToken, rawPhone)
-                || (!clean10.isEmpty() && tokenService.validateVerificationToken(vToken, clean10))
-                || (!clean10.isEmpty() && tokenService.validateVerificationToken(vToken, "+91" + clean10))
-                || vToken.startsWith("temp_verif_")
-                || vToken.startsWith("kfpcl_")
-                || vToken.length() >= 10
-        );
+        boolean isVerificationValid = (vToken != null && !vToken.isBlank())
+                && tokenService.consumeVerificationToken(vToken, rawPhone);
 
         if (!isVerificationValid) {
             throw new IllegalArgumentException("Invalid or expired verification token");
@@ -447,35 +462,48 @@ public class AuthService {
 
     @Transactional
     public TokenResponse firebaseLogin(FirebaseLoginRequest request) {
-        String phoneNumber;
+        if (request == null || request.getIdToken() == null || request.getIdToken().isBlank()) {
+            throw new IllegalArgumentException("Firebase idToken is required");
+        }
+
+        com.google.firebase.auth.FirebaseToken decodedToken;
         try {
-            com.google.firebase.auth.FirebaseToken decodedToken = 
-                    com.google.firebase.auth.FirebaseAuth.getInstance().verifyIdToken(request.getIdToken());
-            phoneNumber = (String) decodedToken.getClaims().get("phone_number");
-            if (phoneNumber == null || phoneNumber.isBlank()) {
-                phoneNumber = decodedToken.getUid();
-            }
+            decodedToken = firebaseAuthService.verifyIdToken(request.getIdToken().trim());
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid Firebase ID token: " + e.getMessage());
+        }
+
+        Object phoneClaim = decodedToken.getClaims().get("phone_number");
+        String phoneNumber = phoneClaim != null ? phoneClaim.toString().trim() : null;
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            throw new IllegalArgumentException("Firebase ID token must contain a verified phone number claim");
         }
 
         String clean10 = phoneNumber.replaceAll("[^0-9]", "");
         if (clean10.length() > 10) {
             clean10 = clean10.substring(clean10.length() - 10);
         }
+        if (clean10.length() < 10) {
+            throw new IllegalArgumentException("Firebase ID token contains an invalid phone number claim");
+        }
 
         // 1. Look up directly in buyer_users (primary table)
         com.project.kfpcl_exports.buyer.model.User buyer = null;
         if (buyerUserRepository != null) {
-            if (!clean10.isEmpty()) {
-                buyer = buyerUserRepository.findByPhoneNumber(clean10).orElse(null);
-            }
+            buyer = buyerUserRepository.findByPhoneNumber(clean10).orElse(null);
             if (buyer == null) {
                 buyer = buyerUserRepository.findByPhoneNumber(phoneNumber).orElse(null);
             }
         }
 
         if (buyer != null) {
+            if (!buyer.isEnabled()) {
+                buyer.setEnabled(true);
+                buyer.setStatus("ACTIVE");
+                buyer = buyerUserRepository.save(buyer);
+            }
             String accessToken = tokenService.createAccessToken(buyer.getId(), buyer.getPhoneNumber());
             String refreshToken = tokenService.createRefreshToken(buyer.getId(), buyer.getPhoneNumber());
 
@@ -513,20 +541,28 @@ public class AuthService {
                     .build();
 
             return TokenResponse.builder()
+                    .isRegistered(true)
                     .accessToken(accessToken)
                     .refreshToken(refreshToken)
                     .user(profile)
                     .build();
         }
 
-        // 2. Fallback check for existing users
+        // 2. Fallback check for existing users in main users table
         Optional<User> userOpt = findUserAnywhere(phoneNumber);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
-            return issueTokensAndSaveFcm(user, request.getFcmToken());
+            TokenResponse res = issueTokensAndSaveFcm(user, request.getFcmToken());
+            res.setIsRegistered(true);
+            return res;
         }
 
-        throw new IllegalArgumentException("Buyer not found with phone number: " + phoneNumber + ". Please register first.");
+        // 3. User is not registered: issue verification token for signup without creating account
+        String verificationToken = tokenService.createVerificationToken(clean10);
+        return TokenResponse.builder()
+                .isRegistered(false)
+                .verificationToken(verificationToken)
+                .build();
     }
 
     public TokenResponse refreshToken(RefreshTokenRequest request) {

@@ -45,6 +45,13 @@ public class AuthenticationApiTest {
     @Autowired
     private AdminUserRepository adminUserRepository;
 
+    @Autowired
+    @Qualifier("buyerUserRepository")
+    private com.project.kfpcl_exports.buyer.repository.UserRepository buyerUserRepository;
+
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private com.project.kfpcl_exports.service.FirebaseAuthService firebaseAuthService;
+
     private static final String ADMIN_EMAIL = "admin@kfpclexports.com";
 
     @BeforeEach
@@ -88,7 +95,7 @@ public class AuthenticationApiTest {
                         .content(objectMapper.writeValueAsString(sendReq)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("OTP sent successfully"))
+                .andExpect(jsonPath("$.message").value("OTP generated in test mode"))
                 .andExpect(jsonPath("$.expiresInSeconds").exists());
 
         // 2. Retrieve OTP via debug endpoint
@@ -120,7 +127,7 @@ public class AuthenticationApiTest {
                         .content(objectMapper.writeValueAsString(resendReq)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("Replacement OTP sent successfully"));
+                .andExpect(jsonPath("$.message").value("Replacement OTP generated in test mode"));
     }
 
     @Test
@@ -429,5 +436,280 @@ public class AuthenticationApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Logged out successfully"));
+    }
+
+    // =========================================================================
+    // 3. FIREBASE AUTHENTICATION & SECURITY TESTS (/api/auth/firebase-login)
+    // =========================================================================
+
+    @Test
+    @DisplayName("POST /api/auth/firebase-login - Registered buyer login returns tokens and isRegistered: true")
+    void testFirebaseLogin_RegisteredUser() throws Exception {
+        String phone = "9876500001";
+        // Seed buyer in buyer_users
+        if (buyerUserRepository.findByPhoneNumber(phone).isEmpty()) {
+            buyerUserRepository.save(com.project.kfpcl_exports.buyer.model.User.builder()
+                    .phoneNumber(phone)
+                    .fullName("Registered Buyer")
+                    .email("buyer@gmail.com")
+                    .companyName("KFPCL Buyer Co")
+                    .businessType(com.project.kfpcl_exports.buyer.enums.BusinessType.WHOLESALER)
+                    .state("Telangana")
+                    .city("Hyderabad")
+                    .enabled(true)
+                    .status("ACTIVE")
+                    .build());
+        }
+
+        com.google.firebase.auth.FirebaseToken mockToken = org.mockito.Mockito.mock(com.google.firebase.auth.FirebaseToken.class);
+        org.mockito.Mockito.when(mockToken.getClaims()).thenReturn(Map.of("phone_number", "+91" + phone));
+        org.mockito.Mockito.when(firebaseAuthService.verifyIdToken("valid_registered_firebase_token")).thenReturn(mockToken);
+
+        FirebaseLoginRequest request = FirebaseLoginRequest.builder()
+                .idToken("valid_registered_firebase_token")
+                .fcmToken("fcm_device_test_fb_1")
+                .build();
+
+        mockMvc.perform(post("/api/auth/firebase-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isRegistered").value(true))
+                .andExpect(jsonPath("$.accessToken").exists())
+                .andExpect(jsonPath("$.refreshToken").exists())
+                .andExpect(jsonPath("$.user.fullName").value("Registered Buyer"))
+                .andExpect(jsonPath("$.user.phoneNumber").value(phone));
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/firebase-login - Unregistered buyer returns isRegistered: false and verificationToken without creating user")
+    void testFirebaseLogin_UnregisteredUser_GeneratesVerificationToken() throws Exception {
+        String newPhone = "9876500002";
+
+        com.google.firebase.auth.FirebaseToken mockToken = org.mockito.Mockito.mock(com.google.firebase.auth.FirebaseToken.class);
+        org.mockito.Mockito.when(mockToken.getClaims()).thenReturn(Map.of("phone_number", "+91" + newPhone));
+        org.mockito.Mockito.when(firebaseAuthService.verifyIdToken("valid_unregistered_firebase_token")).thenReturn(mockToken);
+
+        FirebaseLoginRequest request = FirebaseLoginRequest.builder()
+                .idToken("valid_unregistered_firebase_token")
+                .build();
+
+        mockMvc.perform(post("/api/auth/firebase-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isRegistered").value(false))
+                .andExpect(jsonPath("$.verificationToken").exists())
+                .andExpect(jsonPath("$.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
+                .andExpect(jsonPath("$.user").doesNotExist());
+
+        // Verify user was NOT created
+        assertTrue(buyerUserRepository.findByPhoneNumber(newPhone).isEmpty(), "User must not be automatically created");
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/firebase-login -> Bridge to /api/auth/signup - Complete registration flow")
+    void testFirebaseLogin_BridgeToSignup() throws Exception {
+        String phone = "9876500003";
+
+        com.google.firebase.auth.FirebaseToken mockToken = org.mockito.Mockito.mock(com.google.firebase.auth.FirebaseToken.class);
+        org.mockito.Mockito.when(mockToken.getClaims()).thenReturn(Map.of("phone_number", "+91" + phone));
+        org.mockito.Mockito.when(firebaseAuthService.verifyIdToken("token_for_bridge_signup")).thenReturn(mockToken);
+
+        // 1. Call firebase-login
+        MvcResult fbResult = mockMvc.perform(post("/api/auth/firebase-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new FirebaseLoginRequest("token_for_bridge_signup", null, null, null, null, null, null, null))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isRegistered").value(false))
+                .andExpect(jsonPath("$.verificationToken").exists())
+                .andReturn();
+
+        TokenResponse tokenResp = objectMapper.readValue(fbResult.getResponse().getContentAsString(), TokenResponse.class);
+        String vToken = tokenResp.getVerificationToken();
+        assertNotNull(vToken);
+
+        // 2. Call signup using the verificationToken
+        SignUpRequest signUpReq = SignUpRequest.builder()
+                .phoneNumber(phone)
+                .verificationToken(vToken)
+                .fullName("Firebase New Buyer")
+                .email("fbnewbuyer@gmail.com")
+                .companyName("Firebase Exports Ltd")
+                .businessType("Wholesaler")
+                .state("Telangana")
+                .city("Hyderabad")
+                .build();
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(signUpReq)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.accessToken").exists())
+                .andExpect(jsonPath("$.refreshToken").exists())
+                .andExpect(jsonPath("$.user.fullName").value("Firebase New Buyer"));
+
+        // 3. Verify phone now exists in check-phone
+        mockMvc.perform(get("/api/auth/check-phone/" + phone))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.exists").value(true));
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/signup - Replay prevention: verification token cannot be reused")
+    void testFirebaseLogin_VerificationTokenReplayPrevented() throws Exception {
+        String phone = "9876500004";
+
+        com.google.firebase.auth.FirebaseToken mockToken = org.mockito.Mockito.mock(com.google.firebase.auth.FirebaseToken.class);
+        org.mockito.Mockito.when(mockToken.getClaims()).thenReturn(Map.of("phone_number", "+91" + phone));
+        org.mockito.Mockito.when(firebaseAuthService.verifyIdToken("token_for_replay_test")).thenReturn(mockToken);
+
+        MvcResult fbResult = mockMvc.perform(post("/api/auth/firebase-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new FirebaseLoginRequest("token_for_replay_test", null, null, null, null, null, null, null))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        TokenResponse tokenResp = objectMapper.readValue(fbResult.getResponse().getContentAsString(), TokenResponse.class);
+        String vToken = tokenResp.getVerificationToken();
+
+        // First signup succeeds
+        SignUpRequest req1 = SignUpRequest.builder()
+                .phoneNumber(phone)
+                .verificationToken(vToken)
+                .fullName("User Once")
+                .email("useronce@gmail.com")
+                .companyName("Co")
+                .businessType("Wholesaler")
+                .state("Telangana")
+                .city("Hyd")
+                .build();
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req1)))
+                .andExpect(status().isCreated());
+
+        // Reusing the same verification token MUST fail
+        SignUpRequest req2 = SignUpRequest.builder()
+                .phoneNumber(phone)
+                .verificationToken(vToken)
+                .fullName("User Twice")
+                .email("usertwice@gmail.com")
+                .companyName("Co")
+                .businessType("Wholesaler")
+                .state("Telangana")
+                .city("Hyd")
+                .build();
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req2)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Invalid or expired verification token"));
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/signup - Phone number mismatch rejection: token bound to another phone")
+    void testFirebaseLogin_PhoneMismatchRejection() throws Exception {
+        String boundPhone = "9876500005";
+        String attackerPhone = "9876500099";
+
+        com.google.firebase.auth.FirebaseToken mockToken = org.mockito.Mockito.mock(com.google.firebase.auth.FirebaseToken.class);
+        org.mockito.Mockito.when(mockToken.getClaims()).thenReturn(Map.of("phone_number", "+91" + boundPhone));
+        org.mockito.Mockito.when(firebaseAuthService.verifyIdToken("token_bound_phone")).thenReturn(mockToken);
+
+        MvcResult fbResult = mockMvc.perform(post("/api/auth/firebase-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new FirebaseLoginRequest("token_bound_phone", null, null, null, null, null, null, null))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        TokenResponse tokenResp = objectMapper.readValue(fbResult.getResponse().getContentAsString(), TokenResponse.class);
+        String vToken = tokenResp.getVerificationToken();
+
+        // Attempting to signup attackerPhone using boundPhone's token
+        SignUpRequest mismatchReq = SignUpRequest.builder()
+                .phoneNumber(attackerPhone)
+                .verificationToken(vToken)
+                .fullName("Attacker")
+                .email("attacker@gmail.com")
+                .companyName("Co")
+                .businessType("Wholesaler")
+                .state("Telangana")
+                .city("Hyd")
+                .build();
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(mismatchReq)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Invalid or expired verification token"));
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/firebase-login - Rejects invalid or expired token with 400 Bad Request")
+    void testFirebaseLogin_InvalidToken() throws Exception {
+        org.mockito.Mockito.when(firebaseAuthService.verifyIdToken("invalid_fb_token"))
+                .thenThrow(new IllegalArgumentException("Invalid Firebase ID token: Token is expired"));
+
+        mockMvc.perform(post("/api/auth/firebase-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new FirebaseLoginRequest("invalid_fb_token", null, null, null, null, null, null, null))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Invalid Firebase ID token")));
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/firebase-login - Rejects token missing phone_number claim")
+    void testFirebaseLogin_MissingPhoneClaim() throws Exception {
+        com.google.firebase.auth.FirebaseToken mockToken = org.mockito.Mockito.mock(com.google.firebase.auth.FirebaseToken.class);
+        org.mockito.Mockito.when(mockToken.getClaims()).thenReturn(Map.of()); // No phone_number claim
+        org.mockito.Mockito.when(firebaseAuthService.verifyIdToken("token_missing_phone")).thenReturn(mockToken);
+
+        mockMvc.perform(post("/api/auth/firebase-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new FirebaseLoginRequest("token_missing_phone", null, null, null, null, null, null, null))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Firebase ID token must contain a verified phone number claim"));
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/verify-otp - Brute-force lockout: 5 failed attempts invalidates OTP")
+    void testOtp_BruteForceLockout() throws Exception {
+        String phone = "9110009977";
+
+        mockMvc.perform(post("/api/auth/send-otp")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SendOtpRequest(phone))))
+                .andExpect(status().isOk());
+
+        // Get actual OTP
+        MvcResult otpRes = mockMvc.perform(get("/api/auth/get-otp/" + phone)).andReturn();
+        String actualOtp = objectMapper.readValue(otpRes.getResponse().getContentAsString(), OtpDebugResponse.class).getOtp();
+
+        // 4 failed attempts
+        for (int i = 0; i < 4; i++) {
+            mockMvc.perform(post("/api/auth/verify-otp")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new VerifyOtpRequest(phone, "000000", null))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.verified").value(false));
+        }
+
+        // 5th failed attempt triggers purge
+        mockMvc.perform(post("/api/auth/verify-otp")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new VerifyOtpRequest(phone, "000000", null))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.verified").value(false));
+
+        // Even with the actual valid OTP, verification must now fail because OTP was purged
+        mockMvc.perform(post("/api/auth/verify-otp")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new VerifyOtpRequest(phone, actualOtp, null))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.verified").value(false));
     }
 }

@@ -17,6 +17,7 @@ public class TokenService {
     private static final long REFRESH_TOKEN_TTL_SECONDS = 30L * 24 * 60 * 60; // 30 days
 
     private final Map<String, VerificationTokenData> verificationTokens = new ConcurrentHashMap<>();
+    private final Map<String, Instant> usedVerificationTokens = new ConcurrentHashMap<>();
     private final Map<String, AccessTokenData> accessTokens = new ConcurrentHashMap<>();
     private final Map<String, RefreshTokenData> refreshTokens = new ConcurrentHashMap<>();
     private final Map<String, Boolean> tokenBlacklist = new ConcurrentHashMap<>();
@@ -86,17 +87,81 @@ public class TokenService {
         long nowMs = System.currentTimeMillis();
         String token = "temp_verif_" + clean + "_" + nowMs + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         Instant expiresAt = Instant.now().plusSeconds(VERIFICATION_TOKEN_TTL_SECONDS);
-        verificationTokens.put(token, new VerificationTokenData(phoneNumber, expiresAt));
+        verificationTokens.put(token, new VerificationTokenData(clean, expiresAt));
         return token;
     }
 
-    public boolean validateVerificationToken(String token, String phoneNumber) {
-        if (token == null || token.isBlank()) {
+    public boolean consumeVerificationToken(String token, String phoneNumber) {
+        if (token == null || token.isBlank() || phoneNumber == null || phoneNumber.isBlank()) {
             return false;
         }
 
-        String p2 = phoneNumber != null ? phoneNumber.replaceAll("[^0-9]", "") : "";
+        // 1. Replay prevention: Check if already consumed
+        if (usedVerificationTokens.containsKey(token)) {
+            return false;
+        }
+
+        String p2 = phoneNumber.replaceAll("[^0-9]", "");
         if (p2.length() > 10) p2 = p2.substring(p2.length() - 10);
+        if (p2.length() < 10) {
+            return false;
+        }
+
+        // 2. Check active in-memory tokens
+        VerificationTokenData data = verificationTokens.get(token);
+        if (data != null) {
+            if (Instant.now().isAfter(data.getExpiresAt())) {
+                verificationTokens.remove(token);
+                return false;
+            }
+            String p1 = data.getPhoneNumber().replaceAll("[^0-9]", "");
+            if (p1.length() > 10) p1 = p1.substring(p1.length() - 10);
+            boolean matches = !p1.isEmpty() && p1.equals(p2);
+            if (matches) {
+                // Consume token: remove from active and mark as used
+                verificationTokens.remove(token);
+                usedVerificationTokens.put(token, Instant.now().plusSeconds(VERIFICATION_TOKEN_TTL_SECONDS));
+                return true;
+            }
+            return false;
+        }
+
+        // 3. Fallback for valid temp_verif_ format across server restart
+        if (token.startsWith("temp_verif_")) {
+            String[] parts = token.split("_");
+            // format: temp_verif_<phone>_<timestamp>_<uuid>
+            if (parts.length >= 4) {
+                String tokenPhone = parts[2];
+                try {
+                    long tokenTime = Long.parseLong(parts[3]);
+                    long ageSeconds = (System.currentTimeMillis() - tokenTime) / 1000;
+                    if (ageSeconds >= 0 && ageSeconds <= VERIFICATION_TOKEN_TTL_SECONDS) {
+                        if (!tokenPhone.isEmpty() && tokenPhone.equals(p2)) {
+                            usedVerificationTokens.put(token, Instant.now().plusSeconds(VERIFICATION_TOKEN_TTL_SECONDS));
+                            return true;
+                        }
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        return false;
+    }
+
+    public boolean validateVerificationToken(String token, String phoneNumber) {
+        if (token == null || token.isBlank() || phoneNumber == null || phoneNumber.isBlank()) {
+            return false;
+        }
+
+        if (usedVerificationTokens.containsKey(token)) {
+            return false;
+        }
+
+        String p2 = phoneNumber.replaceAll("[^0-9]", "");
+        if (p2.length() > 10) p2 = p2.substring(p2.length() - 10);
+        if (p2.length() < 10) {
+            return false;
+        }
 
         // 1. Check in-memory map
         VerificationTokenData data = verificationTokens.get(token);
@@ -107,35 +172,22 @@ public class TokenService {
             }
             String p1 = data.getPhoneNumber().replaceAll("[^0-9]", "");
             if (p1.length() > 10) p1 = p1.substring(p1.length() - 10);
-            boolean matches = data.getPhoneNumber().equals(phoneNumber) || (!p1.isEmpty() && p1.equals(p2));
-            if (matches) {
-                return true;
-            }
+            return !p1.isEmpty() && p1.equals(p2);
         }
 
         // 2. Stateless fallback if server restarted / redeployed while user was on form
         if (token.startsWith("temp_verif_")) {
             String[] parts = token.split("_");
-            // format: temp_verif_<phone>_<timestamp>_<uuid>
             if (parts.length >= 4) {
                 String tokenPhone = parts[2];
                 try {
                     long tokenTime = Long.parseLong(parts[3]);
                     long ageSeconds = (System.currentTimeMillis() - tokenTime) / 1000;
-                    if (ageSeconds >= 0 && ageSeconds <= VERIFICATION_TOKEN_TTL_SECONDS * 2) { // 30 min window
-                        if (tokenPhone.isEmpty() || tokenPhone.equals(p2) || p2.isEmpty()) {
-                            return true;
-                        }
+                    if (ageSeconds >= 0 && ageSeconds <= VERIFICATION_TOKEN_TTL_SECONDS) {
+                        return !tokenPhone.isEmpty() && tokenPhone.equals(p2);
                     }
                 } catch (NumberFormatException ignored) {}
             }
-            // Allow genuine temp_verif_ tokens across server restarts
-            return true;
-        }
-
-        // 3. Frontend fallback tokens (e.g. kfpcl_jwt_..., client session tokens)
-        if (token.startsWith("kfpcl_") || token.length() >= 16) {
-            return true;
         }
 
         return false;

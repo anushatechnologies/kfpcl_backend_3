@@ -1,11 +1,10 @@
 package com.project.kfpcl_exports.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 
@@ -14,6 +13,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 @Configuration
+@Slf4j
 public class FirebaseConfig {
 
     private static String lastError = null;
@@ -30,12 +30,18 @@ public class FirebaseConfig {
                 InputStream serviceAccountStream;
 
                 if (envCredentials != null && !envCredentials.isBlank()) {
-                    System.out.println("[FIREBASE CONFIG] Loading Firebase credentials from environment variable FIREBASE_CREDENTIALS");
+                    log.info("[FIREBASE CONFIG] Loading Firebase credentials from environment variable FIREBASE_CREDENTIALS");
                     serviceAccountStream = new ByteArrayInputStream(envCredentials.getBytes(StandardCharsets.UTF_8));
                 } else {
-                    System.out.println("[FIREBASE CONFIG] Loading Firebase credentials from classpath: serviceAccountKey.json");
                     ClassPathResource resource = new ClassPathResource("serviceAccountKey.json");
-                    serviceAccountStream = resource.getInputStream();
+                    if (resource.exists()) {
+                        log.info("[FIREBASE CONFIG] Loading Firebase credentials from classpath: serviceAccountKey.json");
+                        serviceAccountStream = resource.getInputStream();
+                    } else {
+                        lastError = "Firebase credentials not configured (neither FIREBASE_CREDENTIALS env var nor serviceAccountKey.json on classpath)";
+                        log.info("[FIREBASE CONFIG] Firebase credentials not configured. Firebase Admin SDK will not be initialized on startup.");
+                        return;
+                    }
                 }
 
                 try (InputStream is = serviceAccountStream) {
@@ -58,15 +64,14 @@ public class FirebaseConfig {
                             .setDatabaseUrl("https://anushabazaar-2288e-default-rtdb.firebaseio.com")
                             .build();
 
-                    FirebaseApp.initializeApp(options);
+                    FirebaseApp app = FirebaseApp.initializeApp(options);
                     lastError = null;
-                    System.out.println("[FIREBASE CONFIG] FirebaseApp initialized successfully!");
+                    log.info("[FIREBASE CONFIG] FirebaseApp successfully initialized for project: {}", options.getProjectId() != null ? options.getProjectId() : app.getName());
                 }
             }
         } catch (Exception e) {
             lastError = e.getMessage();
-            System.err.println("[FIREBASE CONFIG ERROR] Failed to initialize FirebaseApp: " + e.getMessage());
-            e.printStackTrace();
+            log.error("[FIREBASE CONFIG ERROR] Failed to initialize FirebaseApp: {}", e.getMessage());
         }
     }
 }
