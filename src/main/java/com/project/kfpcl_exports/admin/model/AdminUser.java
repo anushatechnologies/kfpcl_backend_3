@@ -9,8 +9,6 @@ import java.time.LocalDateTime;
 @Table(name = "admin_users")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class AdminUser {
 
@@ -29,6 +27,18 @@ public class AdminUser {
     private String role;
 
     private LocalDateTime createdAt;
+
+    public AdminUser() {
+    }
+
+    public AdminUser(Long id, String email, String password, String name, String role, LocalDateTime createdAt) {
+        this.id = id;
+        this.email = email;
+        this.password = password;
+        this.name = name;
+        this.role = role;
+        this.createdAt = createdAt;
+    }
 
     @PrePersist
     protected void onCreate() {

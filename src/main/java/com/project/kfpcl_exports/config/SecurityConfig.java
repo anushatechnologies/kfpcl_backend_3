@@ -72,6 +72,8 @@ public class SecurityConfig {
                                 "/api/stores/**",
                                 "/api/banners/**",
                                 "/api/media/**",
+                                "/api/loan-applications/**",
+                                "/api/loans/**",
                                 "/api/policies/**",
                                 "/api/notifications/**",
                                 "/api/free-item-offers/**",
